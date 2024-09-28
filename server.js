@@ -1,3 +1,6 @@
+
+import {Movie_Battle} from './game.js';
+
 // server.js
 const express = require('express');
 const http = require('http');
@@ -17,6 +20,10 @@ const io = new Server(server, {
 
 let messages = [];
 
+let players = {};
+let lobbies = {};
+let matches = {};
+
 // Define a route for testing
 app.get('/', (req, res) => {
   res.send('Socket.IO server is running');
@@ -25,6 +32,8 @@ app.get('/', (req, res) => {
 // Handle WebSocket connection
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
+  players[socket.id] = {name: 'guest', lobby: null};
+  console.log(players)
 
   // Listen for messages from the client
   socket.on('send_message', (data) => {
@@ -36,9 +45,30 @@ io.on('connection', (socket) => {
     io.emit('messages', messages);
   });
 
+
+  socket.on('create_lobby', () => {
+    while (true) {
+      let code = generateCode(4);
+      if (Object.keys(lobbies).includes(code) === false) {
+        lobbies[code] = [socket.id];
+        players[socket.id].lobby = code;
+
+        console.log(`Lobby created: ${code}`)
+        break
+      }
+    }
+  });
+
+  socket.on('update_name', (name) => {
+    players[socket.id].name = name
+  });
+
   // Handle disconnect
   socket.on('disconnect', () => {
+    let id = socket.id;
+    delete players.id;
     console.log('User disconnected:', socket.id);
+    console.log(players)
   });
 });
 
@@ -51,3 +81,17 @@ server.listen(4000, () => {
 
 
 
+
+
+
+function generateCode(length) {
+  let result = '';
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const charactersLength = characters.length;
+  let counter = 0;
+  while (counter < length) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    counter += 1;
+  }
+  return result;
+}
