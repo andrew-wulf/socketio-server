@@ -1,5 +1,5 @@
 
-import {Movie_Battle} from './game.js';
+const {Movie_Battle} = require('./game')
 
 // server.js
 const express = require('express');
@@ -32,8 +32,50 @@ app.get('/', (req, res) => {
 // Handle WebSocket connection
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
+  io.to(socket.id).emit('get_id', socket.id);
+
   players[socket.id] = {name: 'guest', lobby: null};
-  console.log(players)
+  
+
+  socket.on('update_name', (player_name) => {
+    console.log(`Name updated for user ${socket.id}: ${player_name}`)
+    players[socket.id].name = player_name
+    console.log(players)
+  })
+
+
+
+  socket.on('create_lobby', () => {
+    while (true) {
+      let code = generateCode(4);
+      if (Object.keys(lobbies).includes(code) === false) {
+        lobbies[code] = [socket.id];
+        players[socket.id].lobby = code;
+
+        io.to(socket.id).emit('lobby_data', 
+          {room: code,
+            players: lobbies[code].map(id => {return [id, players[id].name]})
+          }
+        );
+
+        console.log(`Lobby created: ${code}`)
+        break
+      }
+    }
+  });
+ 
+  socket.on('view_lobbies', () => {
+    io.to(socket.id).emit('lobbies_data', lobbies)
+  })
+
+  socket.on('join_lobbies', () => {
+    io.to(socket.id).emit('lobbies_data', lobbies)
+  })
+
+  socket.on('_lobbies', () => {
+    io.to(socket.id).emit('lobbies_data', lobbies)
+  })
+
 
   // Listen for messages from the client
   socket.on('send_message', (data) => {
@@ -46,31 +88,36 @@ io.on('connection', (socket) => {
   });
 
 
-  socket.on('create_lobby', () => {
-    while (true) {
-      let code = generateCode(4);
-      if (Object.keys(lobbies).includes(code) === false) {
-        lobbies[code] = [socket.id];
-        players[socket.id].lobby = code;
-
-        console.log(`Lobby created: ${code}`)
-        break
-      }
-    }
-  });
-
-  socket.on('update_name', (name) => {
-    players[socket.id].name = name
-  });
 
   // Handle disconnect
   socket.on('disconnect', () => {
     let id = socket.id;
-    delete players.id;
+    let lobbyID = players[id].lobby;
+
+    if (lobbyID) {
+      lobbies[lobbyID] = lobbies[lobbyID].filter(e => {return e !== id});
+      if (lobbies[lobbyID].length < 1) {delete lobbies[lobbyID]}
+    }
+
+    delete players[id];
     console.log('User disconnected:', socket.id);
-    console.log(players)
   });
+
+  socket.on('get_info', () => {
+    console.log('Users:');
+    console.log(players);
+    console.log('lobbies:');
+    console.log(lobbies);
+    console.log('Matches:');
+    console.log(matches);
+  });
+
 });
+
+
+
+
+
 
 // Start the server
 server.listen(4000, () => {

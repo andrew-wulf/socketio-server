@@ -334,6 +334,10 @@ class Movie_Battle {
   }
 }
 
+module.exports = {Movie_Battle};
+
+
+
 
 
 function demo() {
