@@ -32,7 +32,7 @@ app.get('/', (req, res) => {
 // Handle WebSocket connection
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
-  io.to(socket.id).emit('get_id', socket.id);
+  io.to(socket.id).emit('update_signal');
 
   players[socket.id] = {name: 'guest', lobby: null};
   
@@ -46,33 +46,82 @@ io.on('connection', (socket) => {
 
 
   socket.on('create_lobby', () => {
+
     while (true) {
       let code = generateCode(4);
       if (Object.keys(lobbies).includes(code) === false) {
-        lobbies[code] = [socket.id];
+        lobbies[code] = {};
+        lobbies[code][socket.id] = {name: players[socket.id].name}
         players[socket.id].lobby = code;
 
-        io.to(socket.id).emit('lobby_data', 
-          {room: code,
-            players: lobbies[code].map(id => {return [id, players[id].name]})
-          }
-        );
+        io.to(socket.id).emit('update_signal');
+        io.emit('lobbies_data', lobbies);
 
         console.log(`Lobby created: ${code}`)
+        console.log('lobbies:');
+        console.log(lobbies);
         break
       }
     }
   });
+
+
+  socket.on('update', () => {
+    let id = socket.id;
+
+    let lobby_players = {}
+    let code = players[id].lobby;
+
+    if (code !== null) {
+      lobby_players = lobbies[code]
+    }
+
+    let output = {
+      id: id,
+      name: players[id].name,
+      lobby: players[id].lobby,
+      players: lobby_players
+    }
+    console.log('Your data: \n', output)
+    io.to(id).emit('update_data', output)
+  })
  
+
   socket.on('view_lobbies', () => {
     io.to(socket.id).emit('lobbies_data', lobbies)
   })
 
-  socket.on('join_lobbies', () => {
-    io.to(socket.id).emit('lobbies_data', lobbies)
+  socket.on('join_lobby', (code) => {
+    lobbies[code][socket.id] = {name: players[socket.id].name}
+    players[socket.id].lobby = code
+
+    io.to(socket.id).emit('update_signal');
+    io.emit('lobbies_data', lobbies);;
+
+    console.log('lobbies:');
+    console.log(lobbies);
   })
 
-  socket.on('_lobbies', () => {
+  socket.on('exit_lobby', () => {
+    let code = players[socket.id].lobby;
+
+    if (code !== null) {
+      players[socket.id].lobby = null
+      delete lobbies[code][socket.id]
+
+      if (Object.keys(lobbies[code]).length < 1) {
+        delete lobbies[code]
+      }
+
+      io.emit('lobbies_data', lobbies);
+      io.to(socket.id).emit('update_signal');
+
+      console.log('lobbies:');
+      console.log(lobbies);
+    }
+  })
+
+  socket.on('view_lobbies', () => {
     io.to(socket.id).emit('lobbies_data', lobbies)
   })
 
@@ -95,8 +144,8 @@ io.on('connection', (socket) => {
     let lobbyID = players[id].lobby;
 
     if (lobbyID) {
-      lobbies[lobbyID] = lobbies[lobbyID].filter(e => {return e !== id});
-      if (lobbies[lobbyID].length < 1) {delete lobbies[lobbyID]}
+      delete lobbies[lobbyID][id];
+      if (lobbies[lobbyID] == {}) {delete lobbies[lobbyID]}
     }
 
     delete players[id];
