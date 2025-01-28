@@ -21,7 +21,6 @@ const io = new Server(server, {
 let messages = [];
 
 let players = {};
-let sockets = {};
 let lobbies = {};
 let matches = {};
 
@@ -36,13 +35,13 @@ const rooms = io.of("/").adapter.rooms;
 const sids = io.of("/").adapter.sids;
 
 
-// io.of("/").adapter.on("create-room", (room) => {
-//   console.log(`room ${room} was created`);
-// });
+io.of("/").adapter.on("create-room", (room) => {
+  console.log(`room ${room} was created`);
+});
 
-// io.of("/").adapter.on("join-room", (room, id) => {
-//   console.log(`socket ${id} has joined room ${room}`);
-// });
+io.of("/").adapter.on("join-room", (room, id) => {
+  console.log(`socket ${id} has joined room ${room}`);
+});
 
 
 
@@ -50,52 +49,30 @@ const sids = io.of("/").adapter.sids;
 // Handle WebSocket connection
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
+  io.to(socket.id).emit('update_signal');
 
-  io.to(socket.id).emit('login')
-
-
-  socket.on('login', (storageID, nickname) => {
-    console.log(storageID);
-    console.log(Object.keys(players))
+  players[socket.id] = {name: 'guest', lobby: null};
   
-    if (storageID && Object.keys(players).includes(storageID)) {
-      console.log('storageID match: ', storageID);
-      players[storageID].socket = socket.id;
-      players[storageID].name = nickname || 'guest';
-      sockets[socket.id] = storageID
-    }
-  
-    else {
-      players[socket.id] = {name: 'guest', lobby: null, socket: socket.id};
-      sockets[socket.id] = socket.id
-      console.log('setting storage id...')
-      io.to(socket.id).emit('setStorageID', socket.id)
-    }
-  
-    io.to(socket.id).emit('connected')
-    console.log('Player list: ', players);
-  })
 
-
-  socket.on('update_name', (nickname) => {
-    let trueID = sockets[socket.id];
-    console.log(`Name updated for user ${trueID}: ${nickname}`)
-    players[trueID].name = nickname
+  socket.on('update_name', (player_name) => {
+    console.log(`Name updated for user ${socket.id}: ${player_name}`)
+    players[socket.id].name = player_name
+    console.log(players)
   })
 
 
 
   socket.on('create_lobby', () => {
-    let trueID = sockets[socket.id];
 
     while (true) {
       let code = generateCode(4);
       if (Object.keys(lobbies).includes(code) === false) {
         lobbies[code] = {};
-        lobbies[code][trueID] = {name: players[trueID].name, messages: []}
-        players[trueID].lobby = code;
+        lobbies[code][socket.id] = {name: players[socket.id].name}
+        players[socket.id].lobby = code;
 
-        io.to(socket.id).emit('create-lobby-success', code);
+        io.to(socket.id).emit('update_signal', code);
+        io.emit('lobbies_data', lobbies);
 
         console.log(`Lobby created: ${code}`)
         console.log('lobbies:');
@@ -104,10 +81,6 @@ io.on('connection', (socket) => {
       }
     }
   });
-
-  socket.on('room_status', (code) => {
-    io.to(socket.id).emit('room_status', lobbies[code])
-  })
 
 
   socket.on('update', () => {
@@ -131,30 +104,26 @@ io.on('connection', (socket) => {
   })
  
 
-  socket.on('app_data', () => {
-    let data = {players: players, sockets: sockets, lobbies: lobbies, matches: matches};
-    io.to(socket.id).emit('app_data', data)
-  })
-
   socket.on('view_lobbies', () => {
     io.to(socket.id).emit('lobbies_data', lobbies)
   })
 
   socket.on('join_lobby', (code) => {
-    let trueID = sockets[socket.id]
-    lobbies[code][trueID] = {name: players[trueID].name}
-    players[trueID].lobby = code
+    lobbies[code][socket.id] = {name: players[socket.id].name}
+    players[socket.id].lobby = code
 
-    io.to(socket.id).emit('join_success');
-    console.log(`Player ${trueID} joined lobby: ${lobbies[code]}`);
+    io.to(socket.id).emit('update_signal');
+    io.emit('lobbies_data', lobbies);;
+
+    console.log('lobbies:');
+    console.log(lobbies);
   })
 
   socket.on('exit_lobby', () => {
-    let trueID = sockets[socket.id]
-    let code = players[trueID].lobby;
+    let code = players[socket.id].lobby;
 
     if (code !== null) {
-      players[trueID].lobby = null
+      players[socket.id].lobby = null
       delete lobbies[code][socket.id]
 
       if (Object.keys(lobbies[code]).length < 1) {
@@ -189,22 +158,20 @@ io.on('connection', (socket) => {
   // Handle disconnect
   socket.on('disconnect', () => {
     let id = socket.id;
-    let trueID = sockets[socket.id]
-    let lobbyID = players[trueID].lobby;
+    let lobbyID = players[id].lobby;
 
     if (lobbyID) {
       delete lobbies[lobbyID][id];
       if (lobbies[lobbyID] == {}) {delete lobbies[lobbyID]}
     }
-    delete sockets[socket.id]
-    console.log('User disconnected:', {player: trueID, socket: socket.id});
+
+    delete players[id];
+    console.log('User disconnected:', socket.id);
   });
 
   socket.on('get_info', () => {
     console.log('Users:');
     console.log(players);
-    console.log('sockets:');
-    console.log(sockets);
     console.log('lobbies:');
     console.log(lobbies);
     console.log('Matches:');
