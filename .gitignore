@@ -3,3 +3,4 @@
 !/.env*.erb
 **/local_env.yml**
 local.env
+.env

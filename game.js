@@ -1,5 +1,111 @@
+const axios = require('axios')
+const dotenv = require('dotenv')
 
-const axios = require('axios');
+
+function search(term, type='movie', auto=false) {
+
+    return new Promise(resolve => {
+
+        dotenv.config();
+       let base_url = process.env['THEMOVIEDB_BASE_URL'];
+       let api_key = process.env['THEMOVIEDB_API_KEY'];
+       let access_token = process.env['THEMOVIEDB_ACCESS_TOKEN'];
+    
+    
+       if (!term) {
+        resolve(null)
+       }
+
+    
+       let search_params = {'api_key': api_key, 'query': term};
+       let search_url = "";
+       let output = [];
+    
+       if (type === 'person') {
+        search_url = new URL(`${base_url}/search/person`)
+       }
+       else {
+           if (type === 'movie') {
+            search_url = new URL(`${base_url}/search/movie`)
+           }
+           else {
+
+            if (type === 'data') {
+                search_url = new URL(`${base_url}/movie/${term}/credits?language=en-US`);
+                search_params = {'api_key': api_key};
+            }
+            else {
+                resolve(null)
+            }
+           }
+       }
+    
+    
+    
+      axios.get(search_url, {params: search_params})
+        .then(response => {
+            console.log('api call...')
+            let data = response.data
+            let res = data.results
+    
+            if (type === 'person') {
+                resolve(res[0])
+            }
+            
+            if (type === 'movie') {
+                let i = 0
+                let return_index = -1
+        
+                while (output.length < 15 && i < res.length) {
+                    let curr_movie = res[i];
+                    if (curr_movie['release_date'].length > 0) {
+                        output.push({id: curr_movie['id'], title: curr_movie['title'], release_date: curr_movie['release_date']})
+                    }
+                    i++;
+                }
+                resolve(output)
+            }
+
+            if (type === 'data') {
+                output = {director: [], screenplay: [], cinematographer: [], composer: [], editor: [], cast: []}
+                data['crew'].forEach(row => {
+                    let job = row['job']
+                    Object.keys(output).forEach(title => {
+                        let t = title.toString();
+                        if (t === 'cinematographer') {
+                            t = "director of photography"
+                        }
+                        if (t === 'composer') {
+                            t = "original music composer"
+                        }
+                        
+                        if (job.downcase === t) {
+                            output[title].push(row['name'])
+                        }
+                        
+                    })
+                })
+
+                let i = 0;
+                let cast = data['cast']
+                while (i < 50 && i < cast.length) {
+                    output.cast.push([cast[i]['name'], cast[i]['character']])
+                    i +=1
+                }
+                resolve(output)
+            }
+        })
+    
+        .catch(error => {
+            console.log(error);
+            resolve(null)
+        });
+    })
+}
+
+
+
+
 
 
 class Movie_Battle {
@@ -17,68 +123,27 @@ class Movie_Battle {
     this.running = true;
 
     console.log('This is the movie battle server-side controller class! Temporary movie data and some of the core game logic is stored here.')
-    
 
-    this.first_movie_obj = { id: 438631, title: 'Dune', release_date: '2021-09-15' }
-    let first_data = {}
-
-    axios.post(`http://localhost:3000/movies/data.json`, {id: this.first_movie_obj.id})
-        .then(response => {
-          //console.log(response.data);
-
-          first_data = response.data;
-          first_data['title'] = this.first_movie_obj.title;
-          first_data['release_date'] = this.first_movie_obj.release_date;
-
-          this.movies_info = [this.first_movie_obj];
-
-          this.data = [{'438631': first_data}]
-
-          console.log(`first movie: ${first_data['title']} (${first_data['release_date'].substring(0, 4)})`)
-          console.log(`it's ${this.active_players[0]}'s turn.`)
-        })
-        .catch(error => {
-          console.log(error);
-        });
+    this.first_movie()
   }
 
+  async first_movie() {
 
-  search(term, type = 'movie', auto_select = false) {
-    if (this.running === false) {
-      return
-    }
+    this.first_movie_obj = { id: 438631, title: 'Dune', release_date: '2021-01-27' }
+    this.movies_info = [this.first_movie_obj];
 
-    if (term) {
-      axios.post(`http://localhost:3000/movies/search.json`, {term: term, type: type})
-        .then(response => {
-          console.log(response.data);
-        })
-        .catch(error => {
-          console.log(error);
-        });
-    }
+    let res = await search(this.first_movie_obj.id, 'data');
+
+
+    this.data = [{'438631': res}]
+
+    console.log(`first movie: ${this.first_movie_obj['title']} (${this.first_movie_obj['release_date'].substring(0, 4)})`)
+    console.log(`it's ${this.active_players[0]}'s turn.`)
   }
 
 
 
-  movie_data(id) {
-    if (this.running === false) {
-      return
-    }
-
-    if (id) {
-      axios.post(`http://localhost:3000/movies/data.json`, {id: id})
-        .then(response => {
-          console.log(response.data);
-        })
-        .catch(error => {
-          console.log(error);
-        });
-    }
-  };
-
-
-  compare_to_current(movie_obj, blacklist = null, hard_mode = false) {
+  async compare_to_current(movie_obj, blacklist = null, hard_mode = false) {
     if (this.running === false) {
       return
     }
@@ -91,37 +156,29 @@ class Movie_Battle {
             this.onFail(['taken', movie_obj])
         }
         else {
-          axios.post(`http://localhost:3000/movies/data.json`, {id: movie_obj.id})
-            .then(response => {
-              let data = response.data;
-    
-              let last_entry = this.data[this.data.length - 1]
-              let to_compare = Object.values(last_entry)[0]
-    
-              //console.log(data, to_compare)
-  
-    
-              let res = this.compareMovies(to_compare, data);
-              console.log(res);
-                  
-              if (res[0] === 'success') {
-                this.movies_info.push(movie_obj);
-  
-                
-                let new_data = {};
-                new_data[`${movie_obj.id}`] = data;
-  
-                this.data.push(new_data);
-                this.onSuccess(res)
-              }
-              else {
-                this.onFail(res)
-              }
-  
-            })
-            .catch(error => {
-              console.log(error);
-            });
+          let res = await search(movie_obj.id, 'data');
+          
+          let last_entry = this.data[this.data.length - 1];
+          let to_compare = Object.values(last_entry)[0];
+
+          //console.log(data, to_compare)
+
+          let comparison = this.compareMovies(to_compare, res);
+          console.log(comparison);
+              
+          if (comparison[0] === 'success') {
+            this.movies_info.push(movie_obj);
+
+            
+            let new_data = {};
+            new_data[movie_obj.id] = res;
+
+            this.data.push(new_data);
+            this.onSuccess(comparison)
+          }
+          else {
+            this.onFail(comparison)
+          }
         }
       }
   
@@ -372,4 +429,6 @@ function demo() {
   }, 22000)
 }
 
-//demo();
+
+
+demo();
