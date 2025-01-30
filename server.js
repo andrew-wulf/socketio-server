@@ -18,7 +18,6 @@ const io = new Server(server, {
   }
 });
 
-let messages = [];
 
 let players = {};
 let sockets = {};
@@ -60,20 +59,20 @@ io.on('connection', (socket) => {
   
     if (storageID && Object.keys(players).includes(storageID)) {
       console.log('storageID match: ', storageID);
-      players[storageID].socket = socket.id;
-      players[storageID].name = nickname || 'guest';
+      players[storageID].socket = socket.id
+      players[storageID].connected = true
       sockets[socket.id] = storageID
     }
   
     else {
-      players[socket.id] = {name: 'guest', lobby: null, socket: socket.id};
+      players[socket.id] = {name: 'guest', lobby: null, socket: socket.id, connected: true};
       sockets[socket.id] = socket.id
       console.log('setting storage id...')
       io.to(socket.id).emit('setStorageID', socket.id)
     }
   
     io.to(socket.id).emit('connected')
-    console.log('Player list: ', players);
+    //console.log('Player list: ', players);
   })
 
 
@@ -91,15 +90,14 @@ io.on('connection', (socket) => {
     while (true) {
       let code = generateCode(4);
       if (Object.keys(lobbies).includes(code) === false) {
-        lobbies[code] = {};
-        lobbies[code][trueID] = {name: players[trueID].name, messages: []}
+        lobbies[code] = {players: {}, messages: [], status: 'pre-game'};
+        lobbies[code].players[trueID] = {name: players[trueID].name}
         players[trueID].lobby = code;
 
         io.to(socket.id).emit('create-lobby-success', code);
 
         console.log(`Lobby created: ${code}`)
-        console.log('lobbies:');
-        console.log(lobbies);
+        console.log('players: ', players)
         break
       }
     }
@@ -109,26 +107,6 @@ io.on('connection', (socket) => {
     io.to(socket.id).emit('room_status', lobbies[code])
   })
 
-
-  socket.on('update', () => {
-    let id = socket.id;
-
-    let lobby_players = {}
-    let code = players[id].lobby;
-
-    if (code !== null) {
-      lobby_players = lobbies[code]
-    }
-
-    let output = {
-      id: id,
-      name: players[id].name,
-      lobby: players[id].lobby,
-      players: lobby_players
-    }
-    console.log('Your data: \n', output)
-    io.to(id).emit('update_data', output)
-  })
  
 
   socket.on('app_data', () => {
@@ -142,31 +120,19 @@ io.on('connection', (socket) => {
 
   socket.on('join_lobby', (code) => {
     let trueID = sockets[socket.id]
-    lobbies[code][trueID] = {name: players[trueID].name}
+    lobbies[code].players[trueID] = {name: players[trueID].name}
     players[trueID].lobby = code
 
     io.to(socket.id).emit('join_success');
+    io.to(code).emit('room_update', lobbies[code]);
     console.log(`Player ${trueID} joined lobby: ${lobbies[code]}`);
+    console.log('player: ', players[trueID])
   })
 
-  socket.on('exit_lobby', () => {
-    let trueID = sockets[socket.id]
-    let code = players[trueID].lobby;
 
-    if (code !== null) {
-      players[trueID].lobby = null
-      delete lobbies[code][socket.id]
 
-      if (Object.keys(lobbies[code]).length < 1) {
-        delete lobbies[code]
-      }
-
-      io.emit('lobbies_data', lobbies);
-      io.to(socket.id).emit('update_signal');
-
-      console.log('lobbies:');
-      console.log(lobbies);
-    }
+  socket.on('join_channel', (code) => {
+    socket.join(code);
   })
 
   socket.on('view_lobbies', () => {
@@ -175,30 +141,73 @@ io.on('connection', (socket) => {
 
 
   // Listen for messages from the client
-  socket.on('send_message', (data) => {
-    console.log('Message received:', data);
+  socket.on('post_message', (msg, code) => {
 
-    messages.push(data);
+    let trueID = sockets[socket.id];
+    lobbies[code].messages.push([trueID, msg])
+
+    console.log(`Message sent by ${players[trueID].name} in room ${code}: "${msg}"`);
+
 
     // Send a message back to all clients
-    io.emit('messages', messages);
+    io.to(code).emit('room_update', lobbies[code]);
   });
+
+
+  socket.on('start_match', (code) => {
+    lobbies[code].status = 'active'
+    io.to(code).emit('room_update', lobbies[code])
+  })
 
 
 
   // Handle disconnect
   socket.on('disconnect', () => {
+    console.log('socket disconnected: ', socket.id);
+    
     let id = socket.id;
-    let trueID = sockets[socket.id]
+    let trueID = sockets[socket.id];
+  
+    players[trueID].connected = false;
     let lobbyID = players[trueID].lobby;
 
+    
+    console.log('players: ', players)
+
     if (lobbyID) {
-      delete lobbies[lobbyID][id];
-      if (lobbies[lobbyID] == {}) {delete lobbies[lobbyID]}
+      if (lobbies[lobbyID].status === 'pre-game') {
+        console.log('checking for absent players...')
+        setTimeout(() =>{
+          Object.keys(lobbies[lobbyID].players).forEach(trueID => {
+            console.log(players[trueID])
+            if (players[trueID].connected === false) {
+              delete lobbies[lobbyID].players[trueID]
+              players[trueID].lobby = null
+              console.log(`removed absent player ${players[trueID].name} from pre-game lobby ${lobbyID}`)
+            }
+          });
+          if (Object.keys(lobbies[lobbyID].players).length < 1) {
+            delete lobbies[lobbyID]
+            console.log('discarded empty room.')
+          }
+          io.to(lobbyID).emit('room_update', lobbies[lobbyID])
+        }, 2000)
+      }
     }
     delete sockets[socket.id]
-    console.log('User disconnected:', {player: trueID, socket: socket.id});
   });
+
+
+
+  socket.on('test', () => {
+    delete lobbies[lobbyID][id];
+    if (lobbies[lobbyID] == {}) {delete lobbies[lobbyID]}
+  })
+
+
+
+
+
 
   socket.on('get_info', () => {
     console.log('Users:');
@@ -208,6 +217,8 @@ io.on('connection', (socket) => {
     console.log('lobbies:');
     console.log(lobbies);
     console.log('Matches:');
+    console.log(matches);
+    console.log('Channels:');
     console.log(matches);
   });
 
