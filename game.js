@@ -1,8 +1,8 @@
-const axios = require('axios')
-const dotenv = require('dotenv')
+import axios from 'axios'
+import dotenv from 'dotenv'
 
 
-function search(term, type='movie', auto=false) {
+export function Search(term, type='movie', auto=false) {
 
     return new Promise(resolve => {
 
@@ -108,38 +108,78 @@ function search(term, type='movie', auto=false) {
 
 
 
-class Movie_Battle {
+export class Movie_Battle {
 
   constructor(players, bans = true, random = true, test_run = false, multi = true, hard_mode = false) {
     this.players = players;
     this.hard_mode = hard_mode
 
-    this.active_players = Object.keys(players);
+    this.solo_mode = false;
+    if (Object.keys(players).length === 1) {
+      this.solo_mode = true;
+      console.log('Solo mode detected! Keep taking turns until you fail.')
+    }
+  
     this.current_player_index = 0;
 
     this.used_links = {};
     this.blacklist = [];
 
     this.running = true;
+    this.winner_id = ""
 
     console.log('This is the movie battle server-side controller class! Temporary movie data and some of the core game logic is stored here.')
 
     this.first_movie()
   }
 
+  currentStatus() {
+    let last_entry = this.movies_info[this.movies_info.length - 1];
+
+    if (this.running) {
+      console.log('Links: ', this.used_links);
+      console.log('Blacklist: ', this.blacklist);
+      console.log('Players: ', this.players)
+      console.log(`Current Movie: ${last_entry['title']} (${last_entry['release_date'].substring(0, 4)})`)
+      console.log('Up Next: ', this.players[Object.keys(this.players)[this.current_player_index]])
+    }
+
+    else {
+      console.log('Status: game ended.')
+    }
+
+    let output = {
+      players: this.players,
+      current_id: Object.keys(this.players)[this.current_player_index],
+      used_links: this.used_links,
+      blacklist: this.blacklist,
+      running: this.running,
+      data: this.data,
+      winner_id: this.winner_id
+    }
+
+    return (output)
+  }
+
+
   async first_movie() {
 
     this.first_movie_obj = { id: 438631, title: 'Dune', release_date: '2021-01-27' }
     this.movies_info = [this.first_movie_obj];
 
-    let res = await search(this.first_movie_obj.id, 'data');
-
+    let res = await Search(this.first_movie_obj.id, 'data');
 
     this.data = [{'438631': res}]
 
-    console.log(`first movie: ${this.first_movie_obj['title']} (${this.first_movie_obj['release_date'].substring(0, 4)})`)
-    console.log(`it's ${this.active_players[0]}'s turn.`)
+    console.log('Players: ', this.players)
+
+    this.current_player_index = Math.round(Math.random()) * (Object.keys(this.players).length - 1)
+    console.log(this.current_player_index)
+
+    //console.log(`first movie: ${this.first_movie_obj['title']} (${this.first_movie_obj['release_date'].substring(0, 4)})`)
+    //console.log(`it's ${this.players[Object.keys(this.players)[this.current_player_index]].name}'s turn.`)
   }
+
 
 
 
@@ -156,7 +196,7 @@ class Movie_Battle {
             this.onFail(['taken', movie_obj])
         }
         else {
-          let res = await search(movie_obj.id, 'data');
+          let res = await Search(movie_obj.id, 'data');
           
           let last_entry = this.data[this.data.length - 1];
           let to_compare = Object.values(last_entry)[0];
@@ -336,62 +376,99 @@ class Movie_Battle {
       this.used_links[name] = 1
     }
 
-    this.current_player_index++;
-
-    if (this.current_player_index === this.active_players.length) {
-      this.current_player_index = 0;
-    }
-
-    this.currentStatus();
+    this.nextPlayer();
+    return res
   }
 
 
   onFail(res) {
     console.log('Fail!')
-    
-    if (this.eliminatePlayer(this.current_player_index)) {
 
-      if (this.current_player_index === this.active_players.length) {
-        this.current_player_index = 0;
+    let current_id = Object.keys(this.players)[this.current_player_index];
+    
+    this.eliminatePlayer(current_id)
+    this.nextPlayer()
+    return res
+    
+  }
+
+  nextPlayer() {
+    
+    if (this.solo_mode) {
+      return
+    }
+    
+    let p = this.players;
+    let curr = this.current_player_index;
+    curr++;
+    
+    if (curr === Object.keys(p).length) {
+      curr = 0;
+    }
+
+    if (p[Object.keys(p)[curr]].active === false) {
+      let i = 0;
+      while (p[Object.keys(p)[curr]].active === false && i < Object.keys(p).length) {
+        curr++;
+        i++;
+        if (curr === Object.keys(p).length) {
+          curr = 0;
+          break
+        }
       }
+      if (p[Object.keys(p)[curr]].active === false) {
+        this.gameOver()
+      }
+    }
+
+    this.current_player_index = curr
+
+    if (this.running) {
       this.currentStatus();
     }
   }
 
 
-  eliminatePlayer(index) {
+  eliminatePlayer(id) {
 
-    this.active_players.splice(index, 1);
-
-    if (this.active_players.length === 1) {
-      this.gameOver()
-      return false
+    this.players[id].active = false
+    if (this.solo_mode) {
+      this.gameOver();
+      return
     }
 
-    else {
-      return true
+    let active_count = 0
+    Object.keys(this.players).forEach(key => {
+      if (this.players[key].active) {
+        active_count++;
+      }
+    })
+    if (active_count < 2) {
+      this.gameOver()
     }
   }
 
   gameOver() {
     console.log('Game Over!')
     console.log(this.data);
-    console.log('Winner: ', this.active_players[0])
+
+    if (this.solo_mode) {
+      console.log(`Lasted ${this.data.length} rounds.`)
+    }
+    else {
+      Object.keys(this.players).forEach(id => {
+        if (this.players[id].active) {
+          console.log('Winner: ', this.players[id].name)
+          this.winner_id = id
+        }
+      })
+    }
     this.running = false;
   }
 
-  currentStatus() {
-    let last_entry = this.movies_info[this.movies_info.length - 1];
 
-    console.log('Links: ', this.used_links);
-    console.log('Blacklist: ', this.blacklist);
-    console.log('Remaining Players: ', this.active_players)
-    console.log(`Current Movie: ${last_entry['title']} (${last_entry['release_date'].substring(0, 4)})`)
-    console.log('Up Next: ', this.active_players[this.current_player_index])
-  }
 }
 
-module.exports = {Movie_Battle};
 
 
 
@@ -400,10 +477,10 @@ module.exports = {Movie_Battle};
 function demo() {
   
   let players = {
-    'Andrew': {active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}},
-    'Julie': {active: true, bans: ['Nicole Kidman', 'Zendaya', 'Oliva Coleman'], lifelines: {skip: true, info: true, time: true}},
-    'Eric': {active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}},
-    'Mike': {active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}}
+    '1': {name: 'Andrew', active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}},
+    '2': {name: 'Julie', active: true, bans: ['Nicole Kidman', 'Zendaya', 'Oliva Coleman'], lifelines: {skip: true, info: true, time: true}},
+    '3': {name: 'Eric', active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}},
+    '4': {name: 'Mike', active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}}
   }
   
   let mb = new Movie_Battle(players);
@@ -431,4 +508,4 @@ function demo() {
 
 
 
-demo();
+//demo();

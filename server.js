@@ -1,10 +1,10 @@
 
-const {Movie_Battle} = require('./game')
+import {Movie_Battle, Search} from './game.js'
 
 // server.js
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
 
 // Set up Express and HTTP server
 const app = express();
@@ -90,7 +90,7 @@ io.on('connection', (socket) => {
     while (true) {
       let code = generateCode(4);
       if (Object.keys(lobbies).includes(code) === false) {
-        lobbies[code] = {players: {}, messages: [], status: 'pre-game'};
+        lobbies[code] = {players: {}, messages: [], status: 'pre-game', game: null};
         lobbies[code].players[trueID] = {name: players[trueID].name}
         players[trueID].lobby = code;
 
@@ -155,9 +155,46 @@ io.on('connection', (socket) => {
 
 
   socket.on('start_match', (code) => {
-    lobbies[code].status = 'active'
-    io.to(code).emit('room_update', lobbies[code])
+    lobbies[code].status = 'active';
+  
+    Object.keys(lobbies[code].players).forEach(key => {
+      lobbies[code].players[key].active = true
+    })
+
+    lobbies[code].game = new Movie_Battle(lobbies[code].players)
+
+    setTimeout(() => {
+      lobbies[code].game_data = lobbies[code].game.currentStatus();
+      io.to(code).emit('room_update', lobbies[code])
+    }, 600)
   })
+
+
+  socket.on('input_update', val => {
+    input_search(val, io, socket)
+  })
+
+  socket.on('input_submit', (code, arr) => {
+    let trueID = sockets[socket.id];
+    console.log(`Submit: ${trueID} | Room: ${code}`)
+
+    if (lobbies[code].game_data.running === false) {
+      console.log('match ended, no longer accepting inputs.')
+    }
+
+    else {
+      if (lobbies[code].game_data.current_id === trueID) {
+        input_submit(io, code, arr)
+      }
+      else {
+        console.log('submission invalid, current player id is ', lobbies[code].game_data.current_id)
+      }
+    }
+  
+  })
+
+
+  //ids may be set up. setup game on server, input communicates. palyer object should contain all the info needed.
 
 
 
@@ -200,8 +237,22 @@ io.on('connection', (socket) => {
 
 
   socket.on('test', () => {
-    delete lobbies[lobbyID][id];
-    if (lobbies[lobbyID] == {}) {delete lobbies[lobbyID]}
+    let players = {
+      'Andrew': {active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}},
+      'Julie': {active: true, bans: ['Nicole Kidman', 'Zendaya', 'Oliva Coleman'], lifelines: {skip: true, info: true, time: true}},
+      'Eric': {active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}},
+      'Mike': {active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}}
+    }
+    
+    let mb = new Movie_Battle(players);
+  
+    setTimeout(() => {
+      retrieve_comparison(mb, {id: 693134, title: 'Dune: Part Two', release_date: '2024-02-27'})
+    }, 2000)
+    
+    setTimeout(() => {
+      retrieve_comparison(mb, { id: 1148901, title: 'Challenger', release_date: '2024-10-23'})
+    }, 7000)
   })
 
 
@@ -227,19 +278,33 @@ io.on('connection', (socket) => {
 
 
 
-
-
-// Start the server
-server.listen(4000, () => {
-  console.log('Server is listening on port 4000');
-});
-
+async function retrieve_comparison(mb, movie_obj) {
+  let res = mb.compare_to_current(movie_obj);
+  console.log(res)
+}
 
 
 
+async function input_search(val, io, socket) {
+  let res = await Search(val, 'movie');
+  io.to(socket.id).emit('recieve_input_update', val, res)
+}
 
+async function input_submit(io, code, arr) {
+    await lobbies[code].game.compare_to_current(arr);
+    lobbies[code].game_data = lobbies[code].game.currentStatus();
+    io.to(code).emit('room_update', lobbies[code]);
 
+    if (lobbies[code].game_data.running === false) {
+      handleLobbyCleanup(code)
+    }
+}
 
+function handleLobbyCleanup(code) {
+  setTimeout(() => {
+    delete lobbies[code]
+  }, 30000)
+}
 
 function generateCode(length) {
   let result = '';
@@ -252,3 +317,15 @@ function generateCode(length) {
   }
   return result;
 }
+
+
+
+
+
+
+
+
+// Start the server
+server.listen(4000, () => {
+  console.log('Server is listening on port 4000');
+});
