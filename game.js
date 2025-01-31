@@ -123,6 +123,7 @@ export class Movie_Battle {
     this.current_player_index = 0;
 
     this.used_links = {};
+    this.current_link = [];
     this.blacklist = [];
 
     this.running = true;
@@ -151,10 +152,13 @@ export class Movie_Battle {
     let output = {
       players: this.players,
       current_id: Object.keys(this.players)[this.current_player_index],
+      current_name: this.players[Object.keys(this.players)[this.current_player_index]],
+      current_movie: `${last_entry['title']} (${last_entry['release_date'].substring(0, 4)})`,
+      current_link: this.current_link,
+      history: this.history,
       used_links: this.used_links,
       blacklist: this.blacklist,
       running: this.running,
-      data: this.data,
       winner_id: this.winner_id
     }
 
@@ -170,6 +174,8 @@ export class Movie_Battle {
     let res = await Search(this.first_movie_obj.id, 'data');
 
     this.data = [{'438631': res}]
+    this.guesses = []
+    this.history = []
 
     console.log('Players: ', this.players)
 
@@ -205,6 +211,8 @@ export class Movie_Battle {
 
           let comparison = this.compareMovies(to_compare, res);
           console.log(comparison);
+
+          this.guesses.push(`${movie_obj['title']} (${movie_obj['release_date'].substring(0, 4)})`);
               
           if (comparison[0] === 'success') {
             this.movies_info.push(movie_obj);
@@ -212,8 +220,8 @@ export class Movie_Battle {
             
             let new_data = {};
             new_data[movie_obj.id] = res;
-
             this.data.push(new_data);
+
             this.onSuccess(comparison)
           }
           else {
@@ -375,7 +383,9 @@ export class Movie_Battle {
     else {
       this.used_links[name] = 1
     }
+    this.current_link = [name, this.used_links[name]]
 
+    this.appendToHistory(res, this.used_links[name])
     this.nextPlayer();
     return res
   }
@@ -386,10 +396,35 @@ export class Movie_Battle {
 
     let current_id = Object.keys(this.players)[this.current_player_index];
     
+    this.appendToHistory(res)
     this.eliminatePlayer(current_id)
     this.nextPlayer()
     return res
+  }
+
+  appendToHistory(res, n = null) {
+
+    let last_entry = this.data[this.data.length - 1];
+    let usage = null;
     
+    if (n) {
+      usage = [false, false, false]
+
+      let i = 0;
+      while (i < n) {
+        usage[i] = true;
+        i++;
+      }
+    }
+
+    this.history.push({
+      title: this.guesses[this.guesses.length - 1],
+      success: res[0] === 'success',
+      name: res[1],
+      first_role: res[2],
+      second_role: res[3],
+      link_usage: usage
+    })
   }
 
   nextPlayer() {

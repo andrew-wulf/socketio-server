@@ -293,17 +293,23 @@ async function input_search(val, io, socket) {
 async function input_submit(io, code, arr) {
     await lobbies[code].game.compare_to_current(arr);
     lobbies[code].game_data = lobbies[code].game.currentStatus();
+    if (lobbies[code].game_data.running === false) {
+      lobbies[code].status = 'finished'
+    }
     io.to(code).emit('room_update', lobbies[code]);
 
     if (lobbies[code].game_data.running === false) {
+      lobbies[code].status = 'finished'
       handleLobbyCleanup(code)
     }
 }
 
 function handleLobbyCleanup(code) {
-  setTimeout(() => {
-    delete lobbies[code]
-  }, 30000)
+  //leaving for now, may want to rematch
+
+  // setTimeout(() => {
+  //   delete lobbies[code]
+  // }, 30000)
 }
 
 function generateCode(length) {
