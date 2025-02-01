@@ -91,7 +91,7 @@ io.on('connection', (socket) => {
       let code = generateCode(4);
       if (Object.keys(lobbies).includes(code) === false) {
         lobbies[code] = {players: {}, messages: [], status: 'pre-game', game: null};
-        lobbies[code].players[trueID] = {name: players[trueID].name}
+        lobbies[code].players[trueID] = {name: players[trueID].name, ready: false, active: true}
         players[trueID].lobby = code;
 
         io.to(socket.id).emit('create-lobby-success', code);
@@ -120,8 +120,18 @@ io.on('connection', (socket) => {
 
   socket.on('join_lobby', (code) => {
     let trueID = sockets[socket.id]
-    lobbies[code].players[trueID] = {name: players[trueID].name}
-    players[trueID].lobby = code
+
+    if (Object.keys(lobbies[code].players).length < 8) {
+      players[trueID].lobby = code
+
+      if (lobbies[code].status === 'active') {
+        lobbies[code].players[trueID] = {name: players[trueID].name, ready: false, active: false}
+      }
+      else {
+        lobbies[code].players[trueID] = {name: players[trueID].name, ready: false, active: true}
+      }
+    }
+    
 
     io.to(socket.id).emit('join_success');
     io.to(code).emit('room_update', lobbies[code]);
@@ -142,6 +152,10 @@ io.on('connection', (socket) => {
 
   // Listen for messages from the client
   socket.on('post_message', (msg, code) => {
+    if (!lobbies[code]) {
+      io.to(socket.id).emit('reset')
+      return
+    }
 
     let trueID = sockets[socket.id];
     lobbies[code].messages.push([trueID, msg])
@@ -155,28 +169,66 @@ io.on('connection', (socket) => {
 
 
   socket.on('start_match', (code) => {
-    lobbies[code].status = 'active';
-  
-    Object.keys(lobbies[code].players).forEach(key => {
-      lobbies[code].players[key].active = true
-    })
+    if (!lobbies[code]) {
+      io.to(socket.id).emit('reset')
+      return
+    }
 
-    lobbies[code].game = new Movie_Battle(lobbies[code].players)
+    let start_conditions = false;
 
-    setTimeout(() => {
-      lobbies[code].game_data = lobbies[code].game.currentStatus();
+    if (Object.keys(lobbies[code].players).length === 1) {
+      start_conditions = true
+    }
+    else {
+      let trueID = sockets[socket.id];
+      lobbies[code].players[trueID].ready = !lobbies[code].players[trueID].ready
+      console.log(trueID, ' ready: ', lobbies[code].players[trueID].ready)
       io.to(code).emit('room_update', lobbies[code])
-    }, 600)
+
+      if (Object.keys(lobbies[code].players).every(key => {return lobbies[code].players[key].ready === true})) {
+        start_conditions = true
+      }
+    }
+
+    
+
+    
+    if (start_conditions) {
+      lobbies[code].status = 'active';
+    
+      Object.keys(lobbies[code].players).forEach(key => {
+        lobbies[code].players[key].active = true
+        lobbies[code].players[key].ready = false
+      })
+  
+      lobbies[code].game = new Movie_Battle(lobbies[code].players)
+  
+      setTimeout(() => {
+        lobbies[code].game_data = lobbies[code].game.currentStatus();
+        io.to(code).emit('room_update', lobbies[code])
+      }, 600)
+    }
+
   })
 
 
-  socket.on('input_update', val => {
+  socket.on('input_update', (val, code) => {
+    if (!lobbies[code]) {
+      io.to(socket.id).emit('reset')
+      return
+    }
+    
     input_search(val, io, socket)
   })
 
   socket.on('input_submit', (code, arr) => {
     let trueID = sockets[socket.id];
     console.log(`Submit: ${trueID} | Room: ${code}`)
+
+    if (!lobbies[code]) {
+      io.to(socket.id).emit('reset')
+      return
+    }
 
     if (lobbies[code].game_data.running === false) {
       console.log('match ended, no longer accepting inputs.')
@@ -306,6 +358,11 @@ async function input_submit(io, code, arr) {
 
 function handleLobbyCleanup(code) {
   //leaving for now, may want to rematch
+
+  console.log('----------- Server Clutter Check ---------- \n\n\n')
+  console.log('SOCKETS: ', sockets)
+  console.log('PLAYERS: ', players)
+  console.log('LOBBIES', lobbies)
 
   // setTimeout(() => {
   //   delete lobbies[code]

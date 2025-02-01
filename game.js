@@ -79,7 +79,7 @@ export function Search(term, type='movie', auto=false) {
                             t = "original music composer"
                         }
                         
-                        if (job.downcase === t) {
+                        if (job.toLowerCase() === t) {
                             output[title].push(row['name'])
                         }
                         
@@ -173,9 +173,24 @@ export class Movie_Battle {
 
     let res = await Search(this.first_movie_obj.id, 'data');
 
+    console.log(res)
+    let first_movie_data = {};
+    ['director', 'screenplay', 'cinematographer', 'composer', 'editor'].forEach(title => {
+      first_movie_data[title] = res[title];
+    })
+    let cast = [];
+    res.cast.slice(0, 5).forEach(arr => {cast.push(arr[0])});
+
+    first_movie_data.cast = cast
+    first_movie_data['title'] = `${this.first_movie_obj.title} (${this.first_movie_obj.release_date.substring(0,4)})`
+    
+    
+    console.log(first_movie_data)
+
+
     this.data = [{'438631': res}]
-    this.guesses = []
-    this.history = []
+    this.guesses = [`${this.first_movie_obj['title']} (${this.first_movie_obj['release_date'].substring(0, 4)})`]
+    this.history = [first_movie_data]
 
     console.log('Players: ', this.players)
 
@@ -198,7 +213,12 @@ export class Movie_Battle {
     if (movie_obj) {
       if (movie_obj.id) {
 
-        if (Object.keys(this.data).includes(movie_obj.id)) {
+        let used_ids = this.data.map(obj => {return Object.keys(obj)[0]})
+        console.log(movie_obj.id)
+        console.log(used_ids)
+
+        if (used_ids.includes(movie_obj.id.toString())) {
+          console.log('taken!')
             this.onFail(['taken', movie_obj])
         }
         else {
@@ -419,7 +439,7 @@ export class Movie_Battle {
 
     this.history.push({
       title: this.guesses[this.guesses.length - 1],
-      success: res[0] === 'success',
+      success: res[0],
       name: res[1],
       first_role: res[2],
       second_role: res[3],
