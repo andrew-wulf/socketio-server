@@ -200,11 +200,11 @@ export function popular () {
     dotenv.config();
     let api_key = process.env['THEMOVIEDB_API_KEY'];
   
-    axios.get('https://api.themoviedb.org/3/discover/movie?include_adult=true&include_video=false&language=en-US&page=1&sort_by=popularity.desc', {params: {api_key: api_key}})
+    axios.get('https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&sort_by=popularity.desc', {params: {api_key: api_key}})
       .then(response => {
         let res = response.data.results;
 
-        axios.get('https://api.themoviedb.org/3/discover/movie?include_adult=true&include_video=false&language=en-US&page=2&sort_by=popularity.desc', {params: {api_key: api_key}})
+        axios.get('https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=2&sort_by=popularity.desc', {params: {api_key: api_key}})
           .then(response => {
             let res2 = response.data.results;
             
@@ -256,6 +256,7 @@ export class Movie_Battle {
     this.random = random;
     this.hard_mode = hard_mode;
     
+    
     //---
   
     this.current_player_index = 0;
@@ -263,11 +264,12 @@ export class Movie_Battle {
     this.used_links = {};
     this.current_link = [];
     this.blacklist = [];
+    this.history = [];
 
     this.running = true;
     this.winner_id = ""
 
-    console.log('This is the movie battle server-side controller class! Temporary movie data and some of the core game logic is stored here.')
+    //console.log('This is the movie battle server-side controller class! Temporary movie data and some of the core game logic is stored here.')
 
     this.first_movie()
   }
@@ -276,11 +278,11 @@ export class Movie_Battle {
     let last_entry = this.movies_info[this.movies_info.length - 1];
 
     if (this.running) {
-      console.log('Links: ', this.used_links);
-      console.log('Blacklist: ', this.blacklist);
-      console.log('Players: ', this.players)
-      console.log(`Current Movie: ${last_entry['title']} (${last_entry['release_date'].substring(0, 4)})`)
-      console.log('Up Next: ', this.players[Object.keys(this.players)[this.current_player_index]])
+      // console.log('Links: ', this.used_links);
+      // console.log('Blacklist: ', this.blacklist);
+      // console.log('Players: ', this.players)
+      // console.log(`Current Movie: ${last_entry['title']} (${last_entry['release_date'].substring(0, 4)})`)
+      // console.log('Up Next: ', this.players[Object.keys(this.players)[this.current_player_index]])
     }
 
     else {
@@ -305,14 +307,13 @@ export class Movie_Battle {
 
 
   async first_movie() {
-
-    this.first_movie_obj = await topRated();
+    console.log('fetching first movie...')
+    this.first_movie_obj = await popular();
     this.movies_info = [this.first_movie_obj];
 
     let res = await Search(this.first_movie_obj.id, 'data');
     let image_path = await movieImage(this.first_movie_obj.id);
 
-    console.log(res)
     let first_movie_data = {};
     ['director', 'screenplay', 'cinematographer', 'composer', 'editor'].forEach(title => {
       first_movie_data[title] = res[title];
@@ -354,8 +355,8 @@ export class Movie_Battle {
       if (movie_obj.id) {
 
         let used_ids = this.data.map(obj => {return Object.keys(obj)[0]})
-        console.log(movie_obj.id)
-        console.log(used_ids)
+        // console.log(movie_obj.id)
+        // console.log(used_ids)
 
         if (used_ids.includes(movie_obj.id.toString())) {
           console.log('taken!')
@@ -414,7 +415,7 @@ export class Movie_Battle {
     let movie1keys = Object.keys(movie1);
     let titles = ['director', 'screenplay', 'cinematographer', 'composer', 'editor'];
 
-    console.log(movie2['cast'])
+    //console.log(movie2['cast'])
     
     let res = null;
 
@@ -426,7 +427,7 @@ export class Movie_Battle {
         continue;
       }
 
-      console.log(key)
+      //console.log(key)
 
       let category = movie1[key];
       let j = 0;
@@ -439,7 +440,7 @@ export class Movie_Battle {
           role = person[1];
           person = person[0];
         }
-        console.log(person)
+       // console.log(person)
 
         let k = 0;
         while (k < titles.length) {
@@ -453,7 +454,6 @@ export class Movie_Battle {
             let crew = crew_members[x];
             //console.log(crew)
             if (crew === person) {
-              console.log(1)
               if (this.hard_mode) {
                 if (this.in_blacklist(crew)) {
                   res = ['fail', crew, 'fail', title]
@@ -489,7 +489,6 @@ export class Movie_Battle {
           let actor = cast[y];
 
           if (actor[0] === person) {
-            console.log(2)
             if (this.hard_mode) {
               if (this.in_blacklist(actor[0])) {
                 res = ['fail', actor[0], 'blacklisted', actor[1]]
@@ -622,7 +621,7 @@ export class Movie_Battle {
     this.current_player_index = curr
 
     if (this.running) {
-      this.currentStatus();
+      //this.currentStatus();
     }
   }
 
@@ -648,7 +647,6 @@ export class Movie_Battle {
 
   gameOver() {
     console.log('Game Over!')
-    console.log(this.data);
 
     if (this.solo_mode) {
       console.log(`Lasted ${this.data.length} rounds.`)
@@ -710,4 +708,4 @@ function demo() {
 
 // topRated()
 // popular()
-movieImage(105)
+// movieImage(105)

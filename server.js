@@ -225,7 +225,7 @@ io.on('connection', (socket) => {
           lobbies[code].timer.start(io, code, onExpire)
         }
         io.to(code).emit('room_update', lobbies[code])
-      }, 600)
+      }, 1200)
     }
 
   })
@@ -339,7 +339,7 @@ async function input_submit(io, code, arr) {
         setTimeout(() => {
           lobbies[code].timer.start(io, code, onExpire);
           io.to(code).emit('room_update', lobbies[code]);
-        }, 600)
+        }, 1000)
       }
   
       if (lobbies[code].game_data.running === false) {
@@ -360,7 +360,7 @@ function handleLobbyCleanup(code) {
   console.log('----------- Server Clutter Check ---------- \n\n\n')
   console.log('SOCKETS: ', sockets)
   console.log('PLAYERS: ', players)
-  console.log('LOBBIES', lobbies)
+  console.log('LOBBIES', Object.keys(lobbies))
 
   // setTimeout(() => {
   //   delete lobbies[code]
