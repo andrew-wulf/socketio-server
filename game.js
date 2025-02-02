@@ -9,8 +9,6 @@ export function Search(term, type='movie', auto=false) {
         dotenv.config();
        let base_url = process.env['THEMOVIEDB_BASE_URL'];
        let api_key = process.env['THEMOVIEDB_API_KEY'];
-       let access_token = process.env['THEMOVIEDB_ACCESS_TOKEN'];
-    
     
        if (!term) {
         resolve(null)
