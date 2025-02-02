@@ -251,6 +251,9 @@ export class Movie_Battle {
       }
   
     }
+    else {
+      this.onFail(['expired'])
+    }
   }
   
 

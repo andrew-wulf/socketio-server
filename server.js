@@ -1,5 +1,6 @@
 
 import {Movie_Battle, Search} from './game.js'
+import {Timer} from './timer.js'
 
 // server.js
 import express from 'express';
@@ -90,7 +91,14 @@ io.on('connection', (socket) => {
     while (true) {
       let code = generateCode(4);
       if (Object.keys(lobbies).includes(code) === false) {
-        lobbies[code] = {players: {}, messages: [], status: 'pre-game', game: null};
+        let options = {
+          lifelines: true,
+          bans: false,
+          hard_mode: false,
+          random_start: true,
+          timer: 45,
+        }
+        lobbies[code] = {players: {}, messages: [], status: 'pre-game', game: null, options: options, timer: null};
         lobbies[code].players[trueID] = {name: players[trueID].name, ready: false, active: true}
         players[trueID].lobby = code;
 
@@ -191,8 +199,6 @@ io.on('connection', (socket) => {
     }
 
     
-
-    
     if (start_conditions) {
       lobbies[code].status = 'active';
     
@@ -202,9 +208,17 @@ io.on('connection', (socket) => {
       })
   
       lobbies[code].game = new Movie_Battle(lobbies[code].players)
+
+      if (lobbies[code].options.timer) {
+        lobbies[code].timer = new Timer(lobbies[code].options.timer)
+      }
   
       setTimeout(() => {
         lobbies[code].game_data = lobbies[code].game.currentStatus();
+        if (lobbies[code].timer) {
+          console.log('Lobby ', code, ' has a timer.')
+          lobbies[code].timer.start(io, code, onExpire)
+        }
         io.to(code).emit('room_update', lobbies[code])
       }, 600)
     }
@@ -308,23 +322,6 @@ io.on('connection', (socket) => {
   })
 
 
-
-
-
-
-  socket.on('get_info', () => {
-    console.log('Users:');
-    console.log(players);
-    console.log('sockets:');
-    console.log(sockets);
-    console.log('lobbies:');
-    console.log(lobbies);
-    console.log('Matches:');
-    console.log(matches);
-    console.log('Channels:');
-    console.log(matches);
-  });
-
 });
 
 
@@ -335,19 +332,28 @@ async function retrieve_comparison(mb, movie_obj) {
   console.log(res)
 }
 
-
-
 async function input_search(val, io, socket) {
   let res = await Search(val, 'movie');
   io.to(socket.id).emit('recieve_input_update', val, res)
 }
 
 async function input_submit(io, code, arr) {
+
+    if (lobbies[code].timer.expired && arr) {
+      return
+    }
+    lobbies[code].timer.stop()
+
     await lobbies[code].game.compare_to_current(arr);
     lobbies[code].game_data = lobbies[code].game.currentStatus();
+    
     if (lobbies[code].game_data.running === false) {
       lobbies[code].status = 'finished'
     }
+    else {
+      lobbies[code].timer.start(io, code, onExpire)
+    }
+
     io.to(code).emit('room_update', lobbies[code]);
 
     if (lobbies[code].game_data.running === false) {
@@ -355,6 +361,12 @@ async function input_submit(io, code, arr) {
       handleLobbyCleanup(code)
     }
 }
+
+async function onExpire(io, code) {
+  console.log('Sending fail signal...')
+  input_submit(io, code, false)
+}
+
 
 function handleLobbyCleanup(code) {
   //leaving for now, may want to rematch
