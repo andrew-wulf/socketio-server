@@ -80,7 +80,9 @@ io.on('connection', (socket) => {
   socket.on('update_name', (nickname) => {
     let trueID = sockets[socket.id];
     console.log(`Name updated for user ${trueID}: ${nickname}`)
-    players[trueID].name = nickname
+    if (players[trueID]) {
+      players[trueID].name = nickname
+    }
   })
 
 
@@ -112,7 +114,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('room_status', (code) => {
-    io.to(socket.id).emit('room_status', lobbies[code])
+    io.to(socket.id).emit('room_update', lobbies[code])
   })
 
  
@@ -347,19 +349,21 @@ async function input_submit(io, code, arr) {
     await lobbies[code].game.compare_to_current(arr);
     lobbies[code].game_data = lobbies[code].game.currentStatus();
     
-    if (lobbies[code].game_data.running === false) {
-      lobbies[code].status = 'finished'
-    }
-    else {
-      lobbies[code].timer.start(io, code, onExpire)
-    }
-
-    io.to(code).emit('room_update', lobbies[code]);
-
-    if (lobbies[code].game_data.running === false) {
-      lobbies[code].status = 'finished'
-      handleLobbyCleanup(code)
-    }
+    setTimeout(() => {
+      if (lobbies[code].game_data.running === false) {
+        lobbies[code].status = 'finished'
+      }
+      else {
+        lobbies[code].timer.start(io, code, onExpire)
+      }
+  
+      io.to(code).emit('room_update', lobbies[code]);
+  
+      if (lobbies[code].game_data.running === false) {
+        lobbies[code].status = 'finished'
+        handleLobbyCleanup(code)
+      }
+    }, 1200)
 }
 
 async function onExpire(io, code) {

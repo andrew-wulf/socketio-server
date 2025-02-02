@@ -13,6 +13,7 @@ export class Timer {
         this.running = true;
         this.remaining = this.duration;
 
+
         const interval = setInterval(() => {
             // Update timer display
       
