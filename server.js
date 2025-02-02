@@ -1,6 +1,6 @@
 
-import {Movie_Battle, Search} from './game.js'
-import {Timer} from './timer.js'
+import {Movie_Battle, Search} from './public/game.js'
+import {Timer} from './public/timer.js'
 
 // server.js
 import express from 'express';
@@ -10,6 +10,9 @@ import { Server } from 'socket.io';
 // Set up Express and HTTP server
 const app = express();
 const server = http.createServer(app);
+const PORT = process.env.PORT || 4000;
+
+app.use(express.static('public'));
 
 // Set up Socket.IO server
 const io = new Server(server, {
@@ -303,27 +306,6 @@ io.on('connection', (socket) => {
   });
 
 
-
-  socket.on('test', () => {
-    let players = {
-      'Andrew': {active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}},
-      'Julie': {active: true, bans: ['Nicole Kidman', 'Zendaya', 'Oliva Coleman'], lifelines: {skip: true, info: true, time: true}},
-      'Eric': {active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}},
-      'Mike': {active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}}
-    }
-    
-    let mb = new Movie_Battle(players);
-  
-    setTimeout(() => {
-      retrieve_comparison(mb, {id: 693134, title: 'Dune: Part Two', release_date: '2024-02-27'})
-    }, 2000)
-    
-    setTimeout(() => {
-      retrieve_comparison(mb, { id: 1148901, title: 'Challenger', release_date: '2024-10-23'})
-    }, 7000)
-  })
-
-
 });
 
 
@@ -405,6 +387,6 @@ function generateCode(length) {
 
 
 // Start the server
-server.listen(4000, () => {
-  console.log('Server is listening on port 4000');
+server.listen(PORT, () => {
+  console.log(`Server is listening on port ${PORT}`);
 });
