@@ -280,7 +280,7 @@ io.on('connection', (socket) => {
     console.log('players: ', players)
 
     if (lobbyID) {
-      if (lobbies[lobbyID].status === 'pre-game') {
+      if (lobbies[lobbyID].status === 'pre-game' || lobbies[lobbyID].status === 'finished') {
         console.log('checking for absent players...')
         setTimeout(() =>{
           Object.keys(lobbies[lobbyID].players).forEach(trueID => {
@@ -349,21 +349,21 @@ async function input_submit(io, code, arr) {
     await lobbies[code].game.compare_to_current(arr);
     lobbies[code].game_data = lobbies[code].game.currentStatus();
     
-    setTimeout(() => {
-      if (lobbies[code].game_data.running === false) {
-        lobbies[code].status = 'finished'
-      }
-      else {
-        lobbies[code].timer.start(io, code, onExpire)
-      }
-  
+    if (lobbies[code].game_data.running === false) {
+      lobbies[code].status = 'finished'
       io.to(code).emit('room_update', lobbies[code]);
+    }
+    else {
+        setTimeout(() => {
+          lobbies[code].timer.start(io, code, onExpire);
+          io.to(code).emit('room_update', lobbies[code]);
+        }, 600)
+      }
   
       if (lobbies[code].game_data.running === false) {
         lobbies[code].status = 'finished'
         handleLobbyCleanup(code)
       }
-    }, 1200)
 }
 
 async function onExpire(io, code) {

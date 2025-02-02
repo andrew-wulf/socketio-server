@@ -39,8 +39,8 @@ export class Timer {
                 return;
             }
         
-            this.remaining--;
-          }, 1000);
+            this.remaining = this.remaining - 0.5;
+          }, 500);
         
           return interval; // Return interval ID for potential external cleanup
     }

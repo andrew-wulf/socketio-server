@@ -105,12 +105,144 @@ export function Search(term, type='movie', auto=false) {
 
 
 
+function movieImage(id) {
+  return new Promise(resolve => {
+    dotenv.config();
+    let api_key = process.env['THEMOVIEDB_API_KEY'];
+
+    axios.get(`https://api.themoviedb.org/3/movie/${id}/images`, {params: {api_key: api_key}})
+    .then(response => {
+      resolve(response.data.backdrops[0].file_path)
+    })
+      .catch(error => {
+        console.log(error);
+        resolve(null)
+    });
+  })
+}
+
+
+
+
+function pickaMovie(res) {
+  let movies_considered = []
+  let i = 0;
+  while (i < 5) {
+    let index = Math.round(Math.random() * (res.length - 1));
+    movies_considered.push(res[index])
+    i++
+  }
+  let top_rating = movies_considered[0].popularity;
+  let top_index = 0;
+
+  movies_considered.forEach((movie, i) => {
+    if (movie.popularity > top_rating) {
+      top_rating = movie.popularity
+      top_index = i;
+    }
+  })
+
+  return movies_considered[top_index];
+}
+
+
+export function topRated () {
+
+  return new Promise(resolve => { 
+    
+    let page1 = Math.round(Math.random() * 5);
+    let page2 = page1 - 1
+    if (page1 < 1) {
+      page1 = 5
+    }
+    if (page2 < 1) {
+      page2 = 4
+    }
+    let movie = null;
+  
+    dotenv.config();
+    let api_key = process.env['THEMOVIEDB_API_KEY'];
+  
+    axios.get(`https://api.themoviedb.org/3/movie/top_rated?language=en-US&page=${page1}`, {params: {api_key: api_key}})
+      .then(response => {
+        let res = response.data.results;
+
+        axios.get(`https://api.themoviedb.org/3/movie/top_rated?language=en-US&page=${page2}`, {params: {api_key: api_key}})
+          .then(response => {
+            res.concat(response.data.results);
+            movie = pickaMovie(res);
+            //console.log(movie)
+            if (movie) {
+              resolve({id: movie.id, title: movie.title, release_date: movie.release_date}) 
+            }
+            else {
+              resolve({id: 438631, title: 'Dune', release_date: '2021-01-27' }) 
+            }
+          })
+          .catch(error => {
+            console.log(error);
+            resolve(null)
+        });
+      })
+      .catch(error => {
+        console.log(error);
+        resolve(null)
+    });
+  })
+}
+
+
+
+export function popular () {
+
+  return new Promise(resolve => { 
+    
+    let movie = null;
+  
+    dotenv.config();
+    let api_key = process.env['THEMOVIEDB_API_KEY'];
+  
+    axios.get('https://api.themoviedb.org/3/discover/movie?include_adult=true&include_video=false&language=en-US&page=1&sort_by=popularity.desc', {params: {api_key: api_key}})
+      .then(response => {
+        let res = response.data.results;
+
+        axios.get('https://api.themoviedb.org/3/discover/movie?include_adult=true&include_video=false&language=en-US&page=2&sort_by=popularity.desc', {params: {api_key: api_key}})
+          .then(response => {
+            let res2 = response.data.results;
+            
+            res.concat(res2);
+            movie = pickaMovie(res);
+
+            if (movie) {
+              resolve({id: movie.id, title: movie.title, release_date: movie.release_date}) 
+            }
+            else {
+              resolve({id: 438631, title: 'Dune', release_date: '2021-01-27' }) 
+            }
+          })
+          .catch(error => {
+            console.log(error);
+            resolve(null)
+        });
+      })
+      .catch(error => {
+        console.log(error);
+        resolve(null)
+    });
+  })
+}
+
+
+
+
+
+
 
 
 
 export class Movie_Battle {
 
-  constructor(players, bans = true, random = true, test_run = false, multi = true, hard_mode = false) {
+  constructor(players, bans = true, random = true, hard_mode = false) {
     this.players = players;
     this.hard_mode = hard_mode
 
@@ -119,6 +251,14 @@ export class Movie_Battle {
       this.solo_mode = true;
       console.log('Solo mode detected! Keep taking turns until you fail.')
     }
+
+    //Game Options
+
+    this.bans = bans;
+    this.random = random;
+    this.hard_mode = hard_mode;
+    
+    //---
   
     this.current_player_index = 0;
 
@@ -168,10 +308,11 @@ export class Movie_Battle {
 
   async first_movie() {
 
-    this.first_movie_obj = { id: 438631, title: 'Dune', release_date: '2021-01-27' }
+    this.first_movie_obj = await topRated();
     this.movies_info = [this.first_movie_obj];
 
     let res = await Search(this.first_movie_obj.id, 'data');
+    let image_path = await movieImage(this.first_movie_obj.id);
 
     console.log(res)
     let first_movie_data = {};
@@ -183,12 +324,13 @@ export class Movie_Battle {
 
     first_movie_data.cast = cast
     first_movie_data['title'] = `${this.first_movie_obj.title} (${this.first_movie_obj.release_date.substring(0,4)})`
-    
+    first_movie_data.image = `https://image.tmdb.org/t/p/original/${image_path}`
     
     console.log(first_movie_data)
 
-
-    this.data = [{'438631': res}]
+    let obj = {}
+    obj[this.first_movie_obj.id] = res
+    this.data = [obj]
     this.guesses = [`${this.first_movie_obj['title']} (${this.first_movie_obj['release_date'].substring(0, 4)})`]
     this.history = [first_movie_data]
 
@@ -567,3 +709,7 @@ function demo() {
 
 
 //demo();
+
+// topRated()
+// popular()
+movieImage(105)
