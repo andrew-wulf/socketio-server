@@ -240,7 +240,7 @@ export function popular () {
 
 export class Movie_Battle {
 
-  constructor(players, bans = true, random = true, hard_mode = false) {
+  constructor(players, lifelines = true, bans = false, hard_mode = false, random = true, search_type = 'popular') {
     this.players = players;
     this.hard_mode = hard_mode
 
@@ -255,7 +255,7 @@ export class Movie_Battle {
     this.bans = bans;
     this.random = random;
     this.hard_mode = hard_mode;
-    
+    this.search_type = search_type;
     
     //---
   
@@ -265,13 +265,18 @@ export class Movie_Battle {
     this.current_link = [];
     this.blacklist = [];
     this.history = [];
+    this.movies_info = [];
+    this.data = [];
+    this.guesses = [];
+    this.afk_count = 0;
 
     this.running = true;
     this.winner_id = ""
 
     //console.log('This is the movie battle server-side controller class! Temporary movie data and some of the core game logic is stored here.')
-
-    this.first_movie()
+    if (random) {
+      this.first_movie()
+    }
   }
 
   currentStatus() {
@@ -289,26 +294,74 @@ export class Movie_Battle {
       console.log('Status: game ended.')
     }
 
-    let output = {
-      players: this.players,
-      current_id: Object.keys(this.players)[this.current_player_index],
-      current_name: this.players[Object.keys(this.players)[this.current_player_index]],
-      current_movie: `${last_entry['title']} (${last_entry['release_date'].substring(0, 4)})`,
-      current_link: this.current_link,
-      history: this.history,
-      used_links: this.used_links,
-      blacklist: this.blacklist,
-      running: this.running,
-      winner_id: this.winner_id
+
+    let output = {};
+
+    if (this.history.length > 0) {
+      output = {
+        players: this.players,
+        current_id: Object.keys(this.players)[this.current_player_index],
+        current_name: this.players[Object.keys(this.players)[this.current_player_index]],
+        current_movie: `${last_entry['title']} (${last_entry['release_date'].substring(0, 4)})`,
+        current_link: this.current_link,
+        history: this.history,
+        used_links: this.used_links,
+        blacklist: this.blacklist,
+        running: this.running,
+        winner_id: this.winner_id
+      }
     }
+    else {
+      output = {
+        players: this.players,
+        current_id: Object.keys(this.players)[this.current_player_index],
+        current_name: this.players[Object.keys(this.players)[this.current_player_index]],
+        history: this.history,
+        running: this.running,
+      }
+    }
+
 
     return (output)
   }
 
 
-  async first_movie() {
+  async first_movie(first_obj = null) {
     console.log('fetching first movie...')
-    this.first_movie_obj = await popular();
+
+    if (first_obj !== null) {
+      this.first_movie_obj = first_obj;
+      if (!first_obj) {
+        console.log('failed to give first movie. Moving to next player...')
+
+        if (this.solo_mode) {
+          let current_id = Object.keys(this.players)[0];
+          this.eliminatePlayer(current_id);
+        }
+        else {
+          if (this.afk_count < Object.keys(this.players).length - 1) {
+            this.nextPlayer();
+            this.afk_count++;
+          }
+          else {
+            // end the game if no one picks a movie.
+            Object.keys(this.players).forEach(key => {
+              this.eliminatePlayer(key);
+            })
+          }
+        }
+        
+        return
+      }
+    }
+    else {
+      if (this.search_type === 'popular') {
+        this.first_movie_obj = await popular();
+      }
+      else {
+        this.first_movie_obj = await topRated();
+      }
+    }
     this.movies_info = [this.first_movie_obj];
 
     let res = await Search(this.first_movie_obj.id, 'data');
@@ -332,6 +385,10 @@ export class Movie_Battle {
     this.data = [obj]
     this.guesses = [`${this.first_movie_obj['title']} (${this.first_movie_obj['release_date'].substring(0, 4)})`]
     this.history = [first_movie_data]
+
+    if (first_obj) {
+      this.nextPlayer();
+    }
 
     console.log('Players: ', this.players)
 
@@ -566,7 +623,6 @@ export class Movie_Battle {
 
   appendToHistory(res, n = null) {
 
-    let last_entry = this.data[this.data.length - 1];
     let usage = null;
     
     if (n) {

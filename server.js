@@ -101,6 +101,7 @@ io.on('connection', (socket) => {
           bans: false,
           hard_mode: false,
           random_start: true,
+          random_type: 'popular',
           timer: 45,
         }
         lobbies[code] = {players: {}, messages: [], status: 'pre-game', game: null, options: options, timer: null};
@@ -181,6 +182,14 @@ io.on('connection', (socket) => {
   });
 
 
+  socket.on('options_update', (code, key, value) => {
+    if (lobbies[code]) {
+      lobbies[code].options[key] = value
+    }
+    io.to(code).emit('room_update', lobbies[code]);
+  })
+
+
   socket.on('start_match', (code) => {
     if (!lobbies[code]) {
       io.to(socket.id).emit('reset')
@@ -198,21 +207,33 @@ io.on('connection', (socket) => {
       console.log(trueID, ' ready: ', lobbies[code].players[trueID].ready)
       io.to(code).emit('room_update', lobbies[code])
 
+      if (lobbies[code].start_type === 'player') {
+        console.log('player start!')
+      }
+
       if (Object.keys(lobbies[code].players).every(key => {return lobbies[code].players[key].ready === true})) {
         start_conditions = true
       }
     }
 
-    
+
     if (start_conditions) {
-      lobbies[code].status = 'active';
+
+      if (lobbies[code].options.random_start) {
+        lobbies[code].status = 'active';
+      }
+      else {
+        lobbies[code].status = 'first_pick'
+      }
     
       Object.keys(lobbies[code].players).forEach(key => {
         lobbies[code].players[key].active = true
         lobbies[code].players[key].ready = false
       })
+
+      let opts = lobbies[code].options
   
-      lobbies[code].game = new Movie_Battle(lobbies[code].players)
+      lobbies[code].game = new Movie_Battle(lobbies[code].players, opts.lifelines, false, false, opts.random_start, opts.random_type)
 
       if (lobbies[code].options.timer) {
         lobbies[code].timer = new Timer(lobbies[code].options.timer)
@@ -222,7 +243,12 @@ io.on('connection', (socket) => {
         lobbies[code].game_data = lobbies[code].game.currentStatus();
         if (lobbies[code].timer) {
           console.log('Lobby ', code, ' has a timer.')
-          lobbies[code].timer.start(io, code, onExpire)
+          if (lobbies[code].status === 'first_pick') {
+            lobbies[code].timer.start(io, code, onFirstMovieFail)
+          }
+          else {
+            lobbies[code].timer.start(io, code, onExpire)
+          }
         }
         io.to(code).emit('room_update', lobbies[code])
       }, 1200)
@@ -230,6 +256,9 @@ io.on('connection', (socket) => {
 
   })
 
+  socket.on('first_pick', (code, arr) => {
+    input_submit(io, code, arr, true)
+  })
 
   socket.on('input_update', (val, code) => {
     if (!lobbies[code]) {
@@ -321,15 +350,25 @@ async function input_search(val, io, socket) {
   io.to(socket.id).emit('recieve_input_update', val, res)
 }
 
-async function input_submit(io, code, arr) {
+async function input_submit(io, code, arr, first_movie = false) {
 
     if (lobbies[code].timer.expired && arr) {
       return
     }
     lobbies[code].timer.stop()
 
-    await lobbies[code].game.compare_to_current(arr);
+    if (first_movie) {
+      await lobbies[code].game.first_movie(arr);
+    }
+    else {
+      await lobbies[code].game.compare_to_current(arr);
+    }
+
     lobbies[code].game_data = lobbies[code].game.currentStatus();
+
+    if (first_movie && lobbies[code].game_data.history.length > 0) {
+      lobbies[code].status = 'active';
+    }
     
     if (lobbies[code].game_data.running === false) {
       lobbies[code].status = 'finished'
@@ -337,7 +376,12 @@ async function input_submit(io, code, arr) {
     }
     else {
         setTimeout(() => {
-          lobbies[code].timer.start(io, code, onExpire);
+          if (lobbies[code].status === 'first_pick') {
+            lobbies[code].timer.start(io, code, onFirstMovieFail);
+          }
+          else {
+            lobbies[code].timer.start(io, code, onExpire);
+          }
           io.to(code).emit('room_update', lobbies[code]);
         }, 1000)
       }
@@ -351,6 +395,11 @@ async function input_submit(io, code, arr) {
 async function onExpire(io, code) {
   console.log('Sending fail signal...')
   input_submit(io, code, false)
+}
+
+async function onFirstMovieFail(io, code) {
+  console.log('Sending fail signal...')
+  input_submit(io, code, false, true)
 }
 
 
