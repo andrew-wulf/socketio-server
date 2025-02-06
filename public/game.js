@@ -80,8 +80,11 @@ export function Search(term, type='movie', auto=false) {
                         if (job.toLowerCase() === t) {
                             output[title].push(row['name'])
                         }
-                        
                     })
+                    // exception for the occasional 'writer' designation
+                    if (job.toLowerCase() === 'writer') {
+                    output.screenplay.push(row['name'])
+                    }
                 })
 
                 let i = 0;
@@ -110,7 +113,7 @@ function movieImage(id) {
 
     axios.get(`https://api.themoviedb.org/3/movie/${id}/images`, {params: {api_key: api_key}})
     .then(response => {
-      resolve(response.data.backdrops[0].file_path)
+      resolve(response.data.posters[0].file_path)
     })
       .catch(error => {
         console.log(error);
@@ -259,7 +262,7 @@ export class Movie_Battle {
     
     //---
   
-    this.current_player_index = 0;
+    this.current_player_index = Math.round(Math.random()) * (Object.keys(this.players).length - 1)
 
     this.used_links = {};
     this.current_link = [];
@@ -384,15 +387,14 @@ export class Movie_Battle {
     obj[this.first_movie_obj.id] = res
     this.data = [obj]
     this.guesses = [`${this.first_movie_obj['title']} (${this.first_movie_obj['release_date'].substring(0, 4)})`]
-    this.history = [first_movie_data]
+    this.history = [first_movie_data];
+    this.images = [`https://image.tmdb.org/t/p/original/${image_path}`]
 
     if (first_obj) {
       this.nextPlayer();
     }
 
     console.log('Players: ', this.players)
-
-    this.current_player_index = Math.round(Math.random()) * (Object.keys(this.players).length - 1)
     console.log(this.current_player_index)
 
     //console.log(`first movie: ${this.first_movie_obj['title']} (${this.first_movie_obj['release_date'].substring(0, 4)})`)
@@ -414,6 +416,11 @@ export class Movie_Battle {
         let used_ids = this.data.map(obj => {return Object.keys(obj)[0]})
         // console.log(movie_obj.id)
         // console.log(used_ids)
+        
+        this.guesses.push(`${movie_obj['title']} (${movie_obj['release_date'].substring(0, 4)})`);
+        let image_path = await movieImage(movie_obj.id);
+        this.images.push(`https://image.tmdb.org/t/p/original/${image_path}`);
+
 
         if (used_ids.includes(movie_obj.id.toString())) {
           console.log('taken!')
@@ -421,7 +428,7 @@ export class Movie_Battle {
         }
         else {
           let res = await Search(movie_obj.id, 'data');
-          
+
           let last_entry = this.data[this.data.length - 1];
           let to_compare = Object.values(last_entry)[0];
 
@@ -430,7 +437,6 @@ export class Movie_Battle {
           let comparison = this.compareMovies(to_compare, res);
           console.log(comparison);
 
-          this.guesses.push(`${movie_obj['title']} (${movie_obj['release_date'].substring(0, 4)})`);
               
           if (comparison[0] === 'success') {
             this.movies_info.push(movie_obj);
@@ -641,7 +647,8 @@ export class Movie_Battle {
       name: res[1],
       first_role: res[2],
       second_role: res[3],
-      link_usage: usage
+      link_usage: usage,
+      image: this.images[this.images.length - 1]
     })
   }
 
