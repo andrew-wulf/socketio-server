@@ -13,7 +13,6 @@ export class Timer {
         this.running = true;
         this.remaining = this.duration;
 
-
         const interval = setInterval(() => {
             // Update timer display
       
@@ -52,6 +51,7 @@ export class Timer {
     stop() {
         this.running = false
     }
+
 }
 
 

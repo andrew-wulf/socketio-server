@@ -274,7 +274,14 @@ export class Movie_Battle {
     this.afk_count = 0;
 
     this.running = true;
-    this.winner_id = ""
+    this.winner_id = "";
+
+
+    // if (lifelines) {
+    //   Object.keys(players).forEach(id => {
+    //     this.players[id].lifelines = {time: true, skip: true, info: true}
+    //   })
+    // }
 
     //console.log('This is the movie battle server-side controller class! Temporary movie data and some of the core game logic is stored here.')
     if (random) {
@@ -311,7 +318,7 @@ export class Movie_Battle {
         used_links: this.used_links,
         blacklist: this.blacklist,
         running: this.running,
-        winner_id: this.winner_id
+        winner_id: this.winner_id,
       }
     }
     else {
@@ -380,7 +387,8 @@ export class Movie_Battle {
     first_movie_data.cast = cast
     first_movie_data['title'] = `${this.first_movie_obj.title} (${this.first_movie_obj.release_date.substring(0,4)})`
     first_movie_data.image = `https://image.tmdb.org/t/p/original/${image_path}`
-    
+    first_movie_data.show_info = true
+
     console.log(first_movie_data)
 
     let obj = {}
@@ -401,13 +409,32 @@ export class Movie_Battle {
     //console.log(`it's ${this.players[Object.keys(this.players)[this.current_player_index]].name}'s turn.`)
   }
 
+  showInfo() {
+    let i = this.history.length - 1;
+    let data = this.data[this.data.length - 1];
 
+    
+    data = data[Object.keys(data)[0]];
+
+    let titles = ['director', 'screenplay', 'cinematographer', 'composer', 'editor'];
+
+    titles.forEach((title) => {
+
+      this.history[i][title] = data[title];
+    })
+    let cast = [];
+    data.cast.slice(0, 5).forEach(arr => {cast.push(arr[0])});
+
+    this.history[i].cast = cast
+    this.history[i].show_info = true
+  }
 
 
   async compare_to_current(movie_obj, blacklist = null, hard_mode = false) {
     if (this.running === false) {
       return
     }
+    this.show_info = false
 
     console.log('Sending a guess...');
     if (movie_obj) {
@@ -648,7 +675,8 @@ export class Movie_Battle {
       first_role: res[2],
       second_role: res[3],
       link_usage: usage,
-      image: this.images[this.images.length - 1]
+      image: this.images[this.images.length - 1],
+      show_info: false
     })
   }
 

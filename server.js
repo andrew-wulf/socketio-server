@@ -231,18 +231,31 @@ io.on('connection', (socket) => {
         lobbies[code].players[key].ready = false
       })
 
+
       let opts = lobbies[code].options
   
       lobbies[code].game = new Movie_Battle(lobbies[code].players, opts.lifelines, false, false, opts.random_start, opts.random_type)
 
       if (lobbies[code].options.timer) {
         lobbies[code].timer = new Timer(lobbies[code].options.timer)
+  
+      }
+
+      if (lobbies[code].options.lifelines) {
+        Object.keys(lobbies[code].players).forEach(id => {
+          lobbies[code].players[id].lifelines = {time: true, skip: true, info: true}
+        })
       }
   
+
+
       setTimeout(() => {
         lobbies[code].game_data = lobbies[code].game.currentStatus();
         if (lobbies[code].timer) {
           console.log('Lobby ', code, ' has a timer.')
+
+          lobbies[code].timer.setDuration(lobbies[code].options.timer);
+
           if (lobbies[code].status === 'first_pick') {
             lobbies[code].timer.start(io, code, onFirstMovieFail)
           }
@@ -291,6 +304,15 @@ io.on('connection', (socket) => {
       }
     }
   
+  })
+
+  socket.on('lifeline', (code, lifeline) => {
+    if (lobbies[code]) {
+      let trueID = sockets[socket.id];
+      if (lobbies[code].game_data.current_id === trueID && lobbies[code].players[trueID].lifelines[lifeline]) {
+        useLifeline(io, code, trueID, lifeline)
+      }
+    }
   })
 
 
@@ -376,6 +398,8 @@ async function input_submit(io, code, arr, first_movie = false) {
     }
     else {
         setTimeout(() => {
+          lobbies[code].timer.setDuration(lobbies[code].options.timer);
+          
           if (lobbies[code].status === 'first_pick') {
             lobbies[code].timer.start(io, code, onFirstMovieFail);
           }
@@ -390,6 +414,40 @@ async function input_submit(io, code, arr, first_movie = false) {
         lobbies[code].status = 'finished'
         handleLobbyCleanup(code)
       }
+}
+
+async function useLifeline(io, code, trueID, lifeline) {
+  let update = () => {
+    lobbies[code].players[trueID].lifelines[lifeline] = false
+    lobbies[code].game_data = lobbies[code].game.currentStatus();
+    io.to(code).emit('room_update', lobbies[code]);
+  }
+
+  if (lifeline === 'time') {
+
+    let remaining = lobbies[code].timer.remaining;
+    remaining = remaining + (lobbies[code].timer.duration / 2)
+
+    lobbies[code].timer.stop();
+    setTimeout(() => {
+      lobbies[code].timer.setDuration(remaining);
+      lobbies[code].timer.start(io, code, onExpire);
+      update()
+    }, 1200)
+  }
+  if (lifeline === 'info') {
+    lobbies[code].game.showInfo()
+    update()
+  }
+  if (lifeline === 'skip') {
+    lobbies[code].game.nextPlayer();
+    lobbies[code].timer.stop();
+    setTimeout(() => {
+      lobbies[code].timer.setDuration(lobbies[code].options.timer);
+      lobbies[code].timer.start(io, code, onExpire);
+      update()
+    }, 1200)
+  }
 }
 
 async function onExpire(io, code) {
