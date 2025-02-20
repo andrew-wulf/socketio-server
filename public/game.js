@@ -487,19 +487,15 @@ export class Movie_Battle {
     }
   }
   
-
   in_blacklist(person) {
-    this.blacklist.forEach(n => {
-      if (n === person) {
-        return true
-      }
-    })
-    return false
+    return this.blacklist.some(n => {n === person})
   }
 
   compareMovies(movie1, movie2) {
 
-    let firstMatch = null;
+    let currentMatch = ['fail', null];
+    let currentLinkCount = 0;
+
     let i = 1;
 
     let movie1keys = Object.keys(movie1);
@@ -545,20 +541,27 @@ export class Movie_Battle {
             //console.log(crew)
             if (crew === person) {
               if (this.hard_mode) {
-                if (this.in_blacklist(crew)) {
-                  res = ['fail', crew, 'fail', title]
+                if (this.blacklist.includes(crew)) {
+                  res = ['blacklisted', crew, key, title]
                 }
                 else {
-                  if (!firstMatch) {
-                    res = [crew, key, title]
+                  if (currentMatch[0] === 'fail') {
+                    currentMatch = ['success', crew, key, title];
+                    currentLinkCount = this.used_links[person] || 0
                   }
                   else {
-                    res = ['success', crew, key, title]
+                    if (this.used_links[person] && this.used_links[person] > currentLinkCount) {
+                      currentMatch = ['success', crew, key, title];
+                      currentLinkCount = this.used_links[person]
+                    }
                   }
                 }
               }
               else {
-                if (this.in_blacklist(crew) === false) {
+                if (this.blacklist.includes(crew)) {
+                  res = null
+                }
+                else {
                   res = ['success', crew, key, title]
                 }
               }
@@ -580,20 +583,27 @@ export class Movie_Battle {
 
           if (actor[0] === person) {
             if (this.hard_mode) {
-              if (this.in_blacklist(actor[0])) {
-                res = ['fail', actor[0], 'blacklisted', actor[1]]
+              if (this.blacklist.includes(actor[0])) {
+                res = ['blacklisted', actor[0], role, actor[1]]
               }
               else {
-                if (!firstMatch) {
-                  firstMatch = [actor[0], role, actor[1]]
+                if (currentMatch[0] === 'fail') {
+                  currentMatch = ['success', actor[0], role, actor[1]];
+                  currentLinkCount = this.used_links[person] || 0
                 }
                 else {
-                  res = ['success', actor[0], role, actor[1]]
+                  if (this.used_links[person] && this.used_links[person] > currentLinkCount) {
+                    currentMatch = ['success', actor[0], role, actor[1]];
+                    currentLinkCount = this.used_links[person]
+                  }
                 }
               }
             }
             else {
-              if (this.in_blacklist(actor[0]) === false) {
+              if (this.blacklist.includes(actor[0])) {
+                res = null
+              }
+              else {
                 res = ['success', actor[0], role, actor[1]]
               }
               
@@ -610,6 +620,11 @@ export class Movie_Battle {
 
       if (res) {break}
       i++;
+    }
+
+    if (this.hard_mode && !res) {
+      console.log(currentLinkCount)
+      res = currentMatch
     }
 
     if (res) {
@@ -770,7 +785,7 @@ function demo() {
     '4': {name: 'Mike', active: true, bans: ['Tom Cruise', 'Tom Holland', 'Tom Hanks'], lifelines: {skip: true, info: true, time: true}}
   }
   
-  let mb = new Movie_Battle(players);
+  let mb = new Movie_Battle(players, true, false, true);
 
   setTimeout(() => {
     mb.compare_to_current({ id: 693134, title: 'Dune: Part Two', release_date: '2024-02-27'})
@@ -796,7 +811,6 @@ function demo() {
 
 
 //demo();
-
 // topRated()
 // popular()
 // movieImage(105)

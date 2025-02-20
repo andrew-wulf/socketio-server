@@ -234,7 +234,7 @@ io.on('connection', (socket) => {
 
       let opts = lobbies[code].options
   
-      lobbies[code].game = new Movie_Battle(lobbies[code].players, opts.lifelines, false, false, opts.random_start, opts.random_type)
+      lobbies[code].game = new Movie_Battle(lobbies[code].players, opts.lifelines, opts.bans, opts.hard_mode, opts.random_start, opts.random_type)
 
       if (lobbies[code].options.timer) {
         lobbies[code].timer = new Timer(lobbies[code].options.timer)
