@@ -272,9 +272,10 @@ export class Movie_Battle {
     this.data = [];
     this.guesses = [];
     this.afk_count = 0;
+    this.tie_condition = 0;
 
     this.running = true;
-    this.winner_id = "";
+    this.winner_ids = [];
 
 
     // if (lifelines) {
@@ -318,7 +319,7 @@ export class Movie_Battle {
         used_links: this.used_links,
         blacklist: this.blacklist,
         running: this.running,
-        winner_id: this.winner_id,
+        winner_ids: this.winner_ids,
       }
     }
     else {
@@ -434,7 +435,8 @@ export class Movie_Battle {
     if (this.running === false) {
       return
     }
-    this.show_info = false
+    this.show_info = false;
+    this.tie_condition = 0;
 
     console.log('Sending a guess...');
     if (movie_obj) {
@@ -731,6 +733,25 @@ export class Movie_Battle {
     }
   }
 
+  skip() {
+    let active_count = 0;
+    Object.keys(this.players).forEach(key => {
+      if (this.players[key].active) {
+        active_count++;
+      }
+    })
+
+    this.tie_condition++;
+
+    if (this.tie_condition === active_count) {
+      this.gameOver();
+    }
+    else {
+      this.nextPlayer();
+    }
+
+  }
+
 
   eliminatePlayer(id) {
 
@@ -758,12 +779,15 @@ export class Movie_Battle {
       console.log(`Lasted ${this.data.length} rounds.`)
     }
     else {
+      
       Object.keys(this.players).forEach(id => {
         if (this.players[id].active) {
-          console.log('Winner: ', this.players[id].name)
-          this.winner_id = id
+          this.winner_ids.push(id);
         }
       })
+
+      console.log('Winners: ');
+      this.winner_ids.forEach(id => {console.log(this.players[id].name)})
     }
     this.running = false;
   }

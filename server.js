@@ -440,13 +440,21 @@ async function useLifeline(io, code, trueID, lifeline) {
     update()
   }
   if (lifeline === 'skip') {
-    lobbies[code].game.nextPlayer();
+    lobbies[code].game.skip();
     lobbies[code].timer.stop();
-    setTimeout(() => {
-      lobbies[code].timer.setDuration(lobbies[code].options.timer);
-      lobbies[code].timer.start(io, code, onExpire);
-      update()
-    }, 1200)
+
+    lobbies[code].game_data = lobbies[code].game.currentStatus();
+    if (lobbies[code].game_data.running === false) {
+      lobbies[code].status = 'finished'
+      io.to(code).emit('room_update', lobbies[code]);
+    }
+    else {
+      setTimeout(() => {
+        lobbies[code].timer.setDuration(lobbies[code].options.timer);
+        lobbies[code].timer.start(io, code, onExpire);
+        update()
+      }, 1200)
+    }
   }
 }
 
