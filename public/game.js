@@ -124,26 +124,74 @@ function movieImage(id) {
 
 
 
+function sortByPopularity(arr, type='rated') {
+  if (arr.length <= 1) return arr;
 
-function pickaMovie(res) {
-  let movies_considered = []
-  let i = 0;
-  while (i < 5) {
-    let index = Math.round(Math.random() * (res.length - 1));
-    movies_considered.push(res[index])
-    i++
-  }
-  let top_rating = movies_considered[0].popularity;
-  let top_index = 0;
+  let pivot = arr[arr.length - 1];
+  let left = [];
+  let right = [];
 
-  movies_considered.forEach((movie, i) => {
-    if (movie.popularity > top_rating) {
-      top_rating = movie.popularity
-      top_index = i;
+  for (let i = 0; i < arr.length - 1; i++) {
+    if (type === 'popular') {
+      if (arr[i].vote_count < pivot.vote_count) {
+        left.push(arr[i]);
+      } else {
+        right.push(arr[i]);
+      }
     }
-  })
+    else {
+      if (arr[i].popularity < pivot.popularity) {
+        left.push(arr[i]);
+      } else {
+        right.push(arr[i]);
+      }
+    }
+  }
 
-  return movies_considered[top_index];
+  return [...sortByPopularity(left, type), pivot, ...sortByPopularity(right, type)];
+}
+
+
+function pickaMovie(res, type='rated') {
+  var today = new Date();
+  var dd = String(today.getDate()).padStart(2, '0');
+  var mm = String(today.getMonth() + 1).padStart(2, '0');
+  var yyyy = today.getFullYear();
+
+  console.log(type)
+
+  let todayFormatted = `${yyyy}-${mm}-${dd}`
+
+  let arr = []
+
+  if (type === 'rated') {
+    arr = res.filter(row => row.release_date < todayFormatted && row.popularity >= 40)
+  }
+  else {
+    arr = res.filter(row => row.release_date < todayFormatted && row.vote_count >= 1000)
+  }
+
+  let newArr = sortByPopularity(arr, type);
+  //newArr.forEach(row => {console.log(row.title, row.popularity, row.vote_count)})
+
+  let midPoint = Math.round(newArr.length / 2);
+
+  let lesser = newArr.splice(0, midPoint);
+  let greater = newArr;
+
+  let chosen = lesser;
+
+  
+  let weightedOdds = Math.random() * 10
+
+  if (weightedOdds <= 5.5) {
+    chosen = greater
+  }
+
+  let chosenIndex = Math.round(Math.random() * (chosen.length - 1));
+  console.log(chosen[chosenIndex])
+  return chosen[chosenIndex]
+
 }
 
 
@@ -151,43 +199,75 @@ export function topRated () {
 
   return new Promise(resolve => { 
     
-    let page1 = Math.round(Math.random() * 5);
-    let page2 = page1 - 1
-    if (page1 < 1) {
-      page1 = 5
+    let pages = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+    let toSearch = [];
+
+    for (let i=0; i<5; i++) {
+      let popIndex = Math.round(Math.random() * pages.length - 1);
+      toSearch.push(pages.splice(popIndex, 1)[0])
     }
-    if (page2 < 1) {
-      page2 = 4
-    }
+
     let movie = null;
   
     dotenv.config();
     let api_key = process.env['THEMOVIEDB_API_KEY'];
   
-    axios.get(`https://api.themoviedb.org/3/movie/top_rated?language=en-US&page=${page1}`, {params: {api_key: api_key}})
+    axios.get(`https://api.themoviedb.org/3/movie/top_rated?language=en-US&page=${toSearch[0]}`, {params: {api_key: api_key}})
       .then(response => {
         let res = response.data.results;
 
-        axios.get(`https://api.themoviedb.org/3/movie/top_rated?language=en-US&page=${page2}`, {params: {api_key: api_key}})
+        axios.get(`https://api.themoviedb.org/3/movie/top_rated?language=en-US&page=${toSearch[1]}`, {params: {api_key: api_key}})
           .then(response => {
-            res.concat(response.data.results);
-            movie = pickaMovie(res);
-            //console.log(movie)
-            if (movie) {
-              resolve({id: movie.id, title: movie.title, release_date: movie.release_date}) 
-            }
-            else {
-              resolve({id: 438631, title: 'Dune', release_date: '2021-01-27' }) 
-            }
+            res = res.concat(response.data.results);
+
+            axios.get(`https://api.themoviedb.org/3/movie/top_rated?language=en-US&page=${toSearch[2]}`, {params: {api_key: api_key}})
+            .then(response => {
+              res = res.concat(response.data.results);
+              
+              axios.get(`https://api.themoviedb.org/3/movie/top_rated?language=en-US&page=${toSearch[3]}`, {params: {api_key: api_key}})
+              .then(response => {
+                res = res.concat(response.data.results);
+
+                axios.get(`https://api.themoviedb.org/3/movie/top_rated?language=en-US&page=${toSearch[4]}`, {params: {api_key: api_key}})
+                .then(response => {
+                  res = res.concat(response.data.results);
+
+                  movie = pickaMovie(res);
+                  //console.log(movie)
+                  if (movie) {
+                    resolve({id: movie.id, title: movie.title, release_date: movie.release_date}) 
+                  }
+                  else {
+                    resolve({id: 438631, title: 'Dune', release_date: '2021-01-27' }) 
+                  }
+                })
+                .catch(error => {
+                  console.log(error);
+                  resolve(null)
+                });
+              })
+
+              .catch(error => {
+                console.log(error);
+                resolve(null)
+              });
+            })
+
+            .catch(error => {
+              console.log(error);
+              resolve(null)
+            });
           })
+
           .catch(error => {
             console.log(error);
             resolve(null)
-        });
+          });
       })
-      .catch(error => {
-        console.log(error);
-        resolve(null)
+    .catch(error => {
+      console.log(error);
+      resolve(null)
     });
   })
 }
@@ -197,38 +277,77 @@ export function topRated () {
 export function popular () {
 
   return new Promise(resolve => { 
+
+    let pages = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+    let toSearch = [];
+
+    for (let i=0; i<5; i++) {
+      let popIndex = Math.round(Math.random() * pages.length - 1);
+      toSearch.push(pages.splice(popIndex, 1)[0])
+    }
     
     let movie = null;
+    
   
     dotenv.config();
     let api_key = process.env['THEMOVIEDB_API_KEY'];
   
-    axios.get('https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&sort_by=popularity.desc', {params: {api_key: api_key}})
+    axios.get(`https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=${toSearch[0]}&sort_by=popularity.desc`, {params: {api_key: api_key}})
       .then(response => {
         let res = response.data.results;
 
-        axios.get('https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=2&sort_by=popularity.desc', {params: {api_key: api_key}})
+        axios.get(`https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=${toSearch[1]}&sort_by=popularity.desc`, {params: {api_key: api_key}})
           .then(response => {
-            let res2 = response.data.results;
-            
-            res.concat(res2);
-            movie = pickaMovie(res);
+            res = res.concat(response.data.results);
 
-            if (movie) {
-              resolve({id: movie.id, title: movie.title, release_date: movie.release_date}) 
-            }
-            else {
-              resolve({id: 438631, title: 'Dune', release_date: '2021-01-27' }) 
-            }
+            axios.get(`https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=${toSearch[2]}&sort_by=popularity.desc`, {params: {api_key: api_key}})
+            .then(response => {
+              res = res.concat(response.data.results);
+              
+              axios.get(`https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=${toSearch[3]}&sort_by=popularity.desc`, {params: {api_key: api_key}})
+              .then(response => {
+                res = res.concat(response.data.results);
+
+                axios.get(`https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=${toSearch[4]}&sort_by=popularity.desc`, {params: {api_key: api_key}})
+                .then(response => {
+                  res = res.concat(response.data.results);
+
+                  movie = pickaMovie(res, 'popular');
+                  //console.log(movie)
+                  if (movie) {
+                    resolve({id: movie.id, title: movie.title, release_date: movie.release_date}) 
+                  }
+                  else {
+                    resolve({id: 438631, title: 'Dune', release_date: '2021-01-27' }) 
+                  }
+                })
+                .catch(error => {
+                  console.log(error);
+                  resolve(null)
+                });
+              })
+
+              .catch(error => {
+                console.log(error);
+                resolve(null)
+              });
+            })
+
+            .catch(error => {
+              console.log(error);
+              resolve(null)
+            });
           })
+
           .catch(error => {
             console.log(error);
             resolve(null)
-        });
+          });
       })
-      .catch(error => {
-        console.log(error);
-        resolve(null)
+    .catch(error => {
+      console.log(error);
+      resolve(null)
     });
   })
 }
@@ -835,6 +954,6 @@ function demo() {
 
 
 //demo();
-// topRated()
-// popular()
+//topRated()
+popular()
 // movieImage(105)
