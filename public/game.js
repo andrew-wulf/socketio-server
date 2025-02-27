@@ -45,6 +45,7 @@ export function Search(term, type='movie', auto=false) {
             console.log('api call...')
             let data = response.data
             let res = data.results
+            //console.log(res)
     
             if (type === 'person') {
                 resolve(res[0])
@@ -52,11 +53,10 @@ export function Search(term, type='movie', auto=false) {
             
             if (type === 'movie') {
                 let i = 0
-                let return_index = -1
         
                 while (output.length < 15 && i < res.length) {
                     let curr_movie = res[i];
-                    if (curr_movie['release_date'].length > 0) {
+                    if (curr_movie['release_date'] && curr_movie['release_date'].length > 0) {
                         output.push({id: curr_movie['id'], title: curr_movie['title'], release_date: curr_movie['release_date']})
                     }
                     i++;
